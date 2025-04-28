@@ -68,6 +68,8 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define LEN_CELL_SIZE 29.500
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
+#define HOME_X -110.0
+#define HOME_Y 110.0
 
 void setup() {
   // Software Serial for PC
@@ -295,7 +297,7 @@ void get_disc(int rl) {
   // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_set) > 40) {
   //   delay(10);
   // }
-  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl, 5);
+  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl, 2);
   servo_vertical.write(VERTICAL_DEG_SUPPLY);
   delay(100);
   hold_disc_supply(rl);
@@ -329,16 +331,20 @@ void set_starting_board() {
   for (int i = 0; i < 4; ++i) {
     get_disc(RIGHT);
     if (colors[i] == BLACK) {
-      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), RIGHT, 5);
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), RIGHT, 2);
       lower_arm(RIGHT);
       put_disc(RIGHT, BLACK);
     } else {
-      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), LEFT, 5);
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), LEFT, 2);
       flip_disc(RIGHT, BLACK);
       lower_arm(LEFT);
       put_disc(LEFT, WHITE);
     }
   }
+}
+
+void set_home() {
+  move_arm(HOME_X, HOME_Y, RIGHT, 2);
 }
 
 
@@ -372,26 +378,28 @@ void loop() {
   
   /*
   int cell = 36;
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
   lower_arm(RIGHT);
   hold_disc_board(RIGHT, WHITE);
   raise_arm();
   flip_disc(RIGHT, WHITE);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 5);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
   lower_arm(LEFT);
   put_disc(LEFT, BLACK);
   delay(1000);
   
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
   lower_arm(RIGHT);
   hold_disc_board(RIGHT, BLACK);
   raise_arm();
   flip_disc(RIGHT, BLACK);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 5);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
   lower_arm(LEFT);
   put_disc(LEFT, WHITE);
   delay(1000);
   */
+
+  set_home();
 
 
   set_starting_board();
@@ -399,21 +407,22 @@ void loop() {
   {
     get_disc(RIGHT);
     int cell = 37;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
     lower_arm(RIGHT);
     put_disc(RIGHT, BLACK);
   }
   {
     int cell = 36;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
     lower_arm(RIGHT);
     hold_disc_board(RIGHT, WHITE);
     raise_arm();
     flip_disc(RIGHT, WHITE);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 5);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
     lower_arm(LEFT);
     put_disc(LEFT, BLACK);
     delay(1000);
   }
+  set_home();
   for (;;);
 }

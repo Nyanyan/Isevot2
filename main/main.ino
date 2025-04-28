@@ -82,15 +82,18 @@ void move_vertical(int now_deg, int to_deg, int delay_microsec_per_deg) {
   }
 }
 
-void hold_disc_board(int rl, int bw) {
-  digitalWrite(RELAY_RIGHT, LOW);
-  digitalWrite(RELAY_LEFT, LOW);
-  
+void lower_arm(int rl) {
   hold_servo[rl].write(HOLD_DEG_OPEN[rl]);
   hold_servo[rl ^ 1].write(HOLD_DEG_UP[rl ^ 1]);
   delay(100);
   move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, 50);
+}
 
+void raise_arm() {
+  move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 50);
+}
+
+void hold_disc_board(int rl, int bw) {
   digitalWrite(RELAY_VOLTAGE, VOLTAGE_12V);
   digitalWrite(RELAY_POLARITY, POLARITY[rl][bw]);
   if (rl == RIGHT) {
@@ -102,8 +105,29 @@ void hold_disc_board(int rl, int bw) {
   }
 }
 
-void move_arm(int x, int y, int delay_microsec_per_deg) {
-  
+void flip_disc(int rl_from, int bw_from) {
+  for (int i = 0; i < 2; ++i) {
+    hold_servo[i].write(HOLD_DEG_CLOSE[i]);
+  }
+  if (rl_from == RIGHT) {
+    digitalWrite(RELAY_LEFT, HIGH);
+  } else {
+    digitalWrite(RELAY_RIGHT, HIGH);
+  }
+  delay(50);
+  if (rl_from == RIGHT) {
+    digitalWrite(RELAY_RIGHT, LOW);
+  } else {
+    digitalWrite(RELAY_LEFT, LOW);
+  }
+  delay(50);
+  for (int i = 0; i < 2; ++i) {
+    hold_servo[i].write(HOLD_DEG_OPEN[i]);
+  }
+}
+
+void move_arm(int x_mm, int y_mm, int delay_microsec_per_deg) {
+
 }
 
 

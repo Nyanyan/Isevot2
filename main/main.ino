@@ -23,8 +23,8 @@ Servo hold_servo[2]; // right, left
 
 #define RELAY_VOLTAGE A3
 #define RELAY_POLARITY A2
-#define RELAY_RIGHT A0
-#define RELAY_LEFT A1
+#define RELAY_RIGHT A1
+#define RELAY_LEFT A0
 
 #define LED 13
 
@@ -47,16 +47,16 @@ const bool POLARITY[2][2] = {
 };
 
 // pwm servo deg
-const int HOLD_DEG_OPEN[2] = {50, 50};
-const int HOLD_DEG_UP[2] = {40, 40};
-const int HOLD_DEG_CLOSE[2] = {70, 70};
+const int HOLD_DEG_UP[2] = {120, 60};
+const int HOLD_DEG_OPEN[2] = {105, 80};
+const int HOLD_DEG_CLOSE[2] = {7, 178};
 #define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 50
-#define VERTICAL_DEG_BOARD 170
+#define VERTICAL_DEG_BOARD 176
 
 // krs servo neutral position
-#define KRS_NEUTRAL_ROOT 7520
-#define KRS_NEUTRAL_ELBOW 6890
+#define KRS_NEUTRAL_ROOT 7500
+#define KRS_NEUTRAL_ELBOW 6157
 #define KRS_NEUTRAL_DISC_SUPPLY 7500
 
 // hardware constant length (mm) / deg
@@ -103,17 +103,18 @@ void move_vertical(int now_deg, int to_deg, int delay_msec_per_deg) {
     servo_vertical.write(deg);
     delay(delay_msec_per_deg);
   }
+  delay(10);
 }
 
 void lower_arm(int rl) {
   hold_servo[rl].write(HOLD_DEG_OPEN[rl]);
   hold_servo[rl ^ 1].write(HOLD_DEG_UP[rl ^ 1]);
-  delay(100);
-  move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, 50);
+  delay(10);
+  move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, 1);
 }
 
 void raise_arm() {
-  move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 50);
+  move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 1);
 }
 
 void hold_disc_board(int rl, int bw) {
@@ -126,27 +127,44 @@ void hold_disc_board(int rl, int bw) {
     digitalWrite(RELAY_RIGHT, LOW);
     digitalWrite(RELAY_LEFT, HIGH);
   }
+  delay(300);
 }
 
 void flip_disc(int rl_from, int bw_from) {
   for (int i = 0; i < 2; ++i) {
     hold_servo[i].write(HOLD_DEG_CLOSE[i]);
   }
-  if (rl_from == RIGHT) {
-    digitalWrite(RELAY_LEFT, HIGH);
-  } else {
-    digitalWrite(RELAY_RIGHT, HIGH);
-  }
-  delay(50);
+  delay(300);
+  digitalWrite(RELAY_RIGHT, HIGH);
+  digitalWrite(RELAY_LEFT, HIGH);
+  delay(100);
   if (rl_from == RIGHT) {
     digitalWrite(RELAY_RIGHT, LOW);
   } else {
     digitalWrite(RELAY_LEFT, LOW);
   }
-  delay(50);
+  delay(100);
   for (int i = 0; i < 2; ++i) {
     hold_servo[i].write(HOLD_DEG_OPEN[i]);
   }
+  delay(300);
+}
+
+void put_disc(int rl, int bw) {
+  digitalWrite(RELAY_RIGHT, LOW);
+  digitalWrite(RELAY_LEFT, LOW);
+  delay(100);
+  digitalWrite(RELAY_VOLTAGE, VOLTAGE_5V);
+  digitalWrite(RELAY_POLARITY, POLARITY[rl][bw ^ 1]);
+  if (rl == RIGHT) {
+    digitalWrite(RELAY_RIGHT, HIGH);
+  } else {
+    digitalWrite(RELAY_LEFT, HIGH);
+  }
+  servo_vertical.write(VERTICAL_DEG_UP);
+  delay(100);
+  digitalWrite(RELAY_VOLTAGE, LOW);
+  digitalWrite(RELAY_POLARITY, LOW);
 }
 
 int convert_to_krs_diff(double deg) { // from neutral
@@ -175,9 +193,9 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   Serial.println(theta3);
 
   if (rl == RIGHT) {
-    theta2 += ELBOW_FINGER_DEG;
-  } else {
     theta2 -= ELBOW_FINGER_DEG;
+  } else {
+    theta2 += ELBOW_FINGER_DEG;
   }
   int theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
   int theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
@@ -257,8 +275,24 @@ void loop() {
   delay(2000);
   */
   /*
-  int cell = 36;
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 10);
-  lower_arm(RIGHT);
+  hold_servo[RIGHT].write(HOLD_DEG_CLOSE[RIGHT]);
+  hold_servo[LEFT].write(HOLD_DEG_CLOSE[LEFT]);
+  delay(1000);
+  hold_servo[RIGHT].write(HOLD_DEG_OPEN[RIGHT]);
+  hold_servo[LEFT].write(HOLD_DEG_OPEN[LEFT]);
+  delay(2000);
   */
+
+  int cell = 36;
+  //move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 10);
+  //lower_arm(RIGHT);
+  hold_disc_board(RIGHT, WHITE);
+  delay(1000);
+  //raise_arm();
+  flip_disc(RIGHT, WHITE);
+  delay(1000);
+  //move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 10);
+  //lower_arm(LEFT);
+  put_disc(LEFT, BLACK);
+  delay(3000);
 }

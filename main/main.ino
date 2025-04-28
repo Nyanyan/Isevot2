@@ -33,6 +33,8 @@ Servo hold_servo[2]; // right, left
 #define LEFT 1
 #define BLACK 0
 #define WHITE 1
+#define HW 8
+#define HW2 64
 
 #define PI 3.141592653589793
 
@@ -42,26 +44,28 @@ Servo hold_servo[2]; // right, left
 const bool POLARITY[2][2] = {
   {true, false}, // right black, right white
   {false, true}  // left black, left white
-}
+};
 
 // pwm servo deg
 const int HOLD_DEG_OPEN[2] = {50, 50};
 const int HOLD_DEG_UP[2] = {40, 40};
 const int HOLD_DEG_CLOSE[2] = {70, 70};
-#define VERTICAL_DEG_UP 40
-#define VERTICAL_DEG_BOARD 80
+#define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 50
+#define VERTICAL_DEG_BOARD 170
 
 // krs servo neutral position
-#define KRS_NEUTRAL_ROOT 7500
-#define KRS_NEUTRAL_ELBOW 6833
+#define KRS_NEUTRAL_ROOT 7520
+#define KRS_NEUTRAL_ELBOW 6890
 #define KRS_NEUTRAL_DISC_SUPPLY 7500
 
 // hardware constant length (mm) / deg
-#define LEN_ARM_ROOT 150
-#define LEN_ARM_ELBOW 160
-#define LEN_ROBOT_BOARD_MIN_Y 80
-#define ELBOW_FINGER_DEG 10.0
+#define LEN_ARM_ROOT 185.000
+#define LEN_ARM_ELBOW 189.392
+#define ELBOW_FINGER_DEG 12.3632
+#define LEN_ROBOT_TO_BOARD_Y 144.424
+#define LEN_CENTER_TO_CELL_X 15.750
+#define LEN_CELL_SIZE 29.500
 
 void setup() {
   // Software Serial for PC
@@ -69,6 +73,7 @@ void setup() {
   
   // Hardware Serial for Servo
   krs.begin();
+  //Serial.begin(115200);
 
   // PWM servo
   servo_vertical.attach(SERVO_VERTICAL);
@@ -83,11 +88,12 @@ void setup() {
 
   pinMode(LED, OUTPUT);
   
-  Serial2.println("Start!");
+  delay(1000);
+  Serial.println("Start!");
   digitalWrite(LED, HIGH);
 }
 
-void move_vertical(int now_deg, int to_deg, int delay_microsec_per_deg) {
+void move_vertical(int now_deg, int to_deg, int delay_msec_per_deg) {
   int deg_dif = abs(now_deg - to_deg);
   int delta = 1;
   if (to_deg < now_deg) {
@@ -95,7 +101,7 @@ void move_vertical(int now_deg, int to_deg, int delay_microsec_per_deg) {
   }
   for (int deg = now_deg; deg != to_deg; deg += delta) {
     servo_vertical.write(deg);
-    delayMicroseconds(delay_microsec_per_deg);
+    delay(delay_msec_per_deg);
   }
 }
 
@@ -151,42 +157,108 @@ double convert_from_krs_diff(double krs_deg) { // from neutral
   return (krs_deg - 7500) * 270.0 / 8000.0;
 }
 
-void move_arm(double x_mm, double y_mm, int rl, int delay_microsec) {
-  double r2 = x_mm * x_mm + y_mm * y_mm
+void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
+  double r2 = x_mm * x_mm + y_mm * y_mm;
   double r = sqrt(r2);
-  double L1 = LEN_ARM_ROOT;
-  double L2 = LEN_ARM_ELBOW;
-  double L12 = L1 * L1;
-  double L22 = L2 * L2;
+  const double L1 = LEN_ARM_ROOT;
+  const double L2 = LEN_ARM_ELBOW;
+  const double L12 = L1 * L1;
+  const double L22 = L2 * L2;
   double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
   double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;
+  
+  Serial.print(theta1);
+  Serial.print(' ');
+  Serial.print(theta2);
+  Serial.print(' ');
+  Serial.println(theta3);
+
   if (rl == RIGHT) {
     theta2 += ELBOW_FINGER_DEG;
   } else {
     theta2 -= ELBOW_FINGER_DEG;
   }
-  int theta1_converted = convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
-  int theta2_converted = convert_to_krs_deg(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
+  int theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+  int theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
+  
+  Serial.print(theta1_converted);
+  Serial.print(' ');
+  Serial.println(theta2_converted);
+
   int theta1_start = krs.getPos(KRS_ID_ROOT);
   int theta2_start = krs.getPos(KRS_ID_ELBOW);
+  Serial.print(theta1_start);
+  Serial.print(' ');
+  Serial.println(theta2_start);
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
-  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
-  for (int i = 0; i < step; ++i) {
-    double d = 1.0 - cos(PI / step * i);
-    int deg1 = theta1_start + diff_theta1 * d;
-    int deg2 = theta2_start + diff_theta2 * d;
-    krs.write(KRS_ID_ROOT, deg1);
-    krs.write(KRS_ID_ELBOW, deg2);
-    delayMicroseconds(delay_microsec);
+  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0 / 2.0);
+  if (step < 20) {
+    step = 20;
   }
+  for (int i = 0; i < step; ++i) {
+    double d = (1.0 - cos(PI / step * i)) * 0.5;
+    int deg1 = round((double)theta1_start + d * diff_theta1);
+    int deg2 = round((double)theta2_start + d * diff_theta2);
+    
+    Serial.print(i);
+    Serial.print(' ');
+    Serial.print(d);
+    Serial.print(' ');
+    Serial.print(deg1);
+    Serial.print(' ');
+    Serial.println(deg2);
+
+    krs.setPos(KRS_ID_ROOT, deg1);
+    krs.setPos(KRS_ID_ELBOW, deg2);
+    delay(delay_msec);
+  }
+}
+
+double calc_x_mm(int cell) {
+  int x = cell % HW;
+  double res = 0.0;
+  if (x <= 3) { // left
+    res += LEN_CENTER_TO_CELL_X;
+    res += LEN_CELL_SIZE * (3 - x);
+  } else { // right
+    res -= LEN_CENTER_TO_CELL_X;
+    res -= LEN_CELL_SIZE * (x - 4);
+  }
+  return res;
+}
+
+double calc_y_mm(int cell) {
+  int y = cell / HW;
+  double res = LEN_ROBOT_TO_BOARD_Y;
+  res += LEN_CELL_SIZE * y;
+  return res;
 }
 
 
 void loop() {
-  servo_vertical.write(90);
-  delay(500);
-  servo_vertical.write(100);
-  delay(500);
+  /*
+  for (int cell = 0; cell < HW2; ++cell) {
+    delay(1000);
+    double x = calc_x_mm(cell);
+    double y = calc_y_mm(cell);
+    Serial.print(x);
+    Serial.print(' ');
+    Serial.println(y);
+    move_arm(x, y, RIGHT, 10);
+  }
+  */
+  //for (;;);
+  /*
+  servo_vertical.write(VERTICAL_DEG_UP);
+  delay(1000);
+  servo_vertical.write(VERTICAL_DEG_BOARD);
+  delay(2000);
+  */
+  /*
+  int cell = 36;
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 10);
+  lower_arm(RIGHT);
+  */
 }

@@ -2,14 +2,18 @@
 #include <IcsHardSerialClass.h>
 #include <Servo.h>
 
-//SoftwareSerial Serial2(3, 2);
+SoftwareSerial Serial2(3, 2);
 
+// krs servo
 #define EN_PIN 7
 #define BAUDRATE 115200
 #define TIMEOUT 1000
-
 IcsHardSerialClass krs(&Serial, EN_PIN, BAUDRATE, TIMEOUT);
+#define KRS_ID_ROOT 0
+#define KRS_ID_ELBOW 1
+#define KRS_ID_DISC_SUPPLY 2
 
+// pwm servo
 #define SERVO_VERTICAL 9
 #define SERVO_RIGHT 10
 #define SERVO_LEFT 11
@@ -30,6 +34,8 @@ Servo hold_servo[2]; // right, left
 #define BLACK 0
 #define WHITE 1
 
+#define PI 3.141592653589793
+
 // relay
 #define VOLTAGE_12V LOW
 #define VOLTAGE_5V HIGH
@@ -46,9 +52,14 @@ const int HOLD_DEG_CLOSE[2] = {70, 70};
 #define VERTICAL_DEG_BOARD 80
 #define VERTICAL_DEG_SUPPLY 50
 
+// krs servo neutral position
+#define KRS_NEUTRAL_ROOT 7500
+#define KRS_NEUTRAL_ELBOW 6833
+#define KRS_NEUTRAL_DISC_SUPPLY 7500
+
 // length (mm)
 #define LEN_ARM_ROOT 150
-#define LEN_ARM_FINGER 160
+#define LEN_ARM_ELBOW 160
 #define LEN_ROBOT_BOARD_MIN_Y 80
 
 void setup() {
@@ -131,19 +142,40 @@ void flip_disc(int rl_from, int bw_from) {
   }
 }
 
-void move_arm(double x_mm, double y_mm, int delay_microsec_per_deg) {
+int convert_to_krs_diff(double deg) { // from neutral
+  return round(deg * 8000.0 / 270.0);
+}
+
+double convert_from_krs_diff(double krs_deg) { // from neutral
+  return (krs_deg - 7500) * 270.0 / 8000.0;
+}
+
+void move_arm(double x_mm, double y_mm, int delay_microsec) {
   double r2 = x_mm * x_mm + y_mm * y_mm
   double r = sqrt(r2);
   double L1 = LEN_ARM_ROOT;
-  double L2 = LEN_ARM_FINGER;
+  double L2 = LEN_ARM_ELBOW;
   double L12 = L1 * L1;
   double L22 = L2 * L2;
-  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2));
-  double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r));
-  double theta1 = acos(x_mm / r) + theta3;
-  
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;
+  double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
+  double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;
+  int theta1_converted = convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+  int theta2_converted = convert_to_krs_deg(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
+  int theta1_start = krs.getPos(KRS_ID_ROOT);
+  int theta2_start = krs.getPos(KRS_ID_ELBOW);
+  int diff_theta1 = theta1_converted - theta1_start;
+  int diff_theta2 = theta2_converted - theta2_start;
+  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
+  for (int i = 0; i < step; ++i) {
+    double d = 1.0 - cos(PI / step * i);
+    int deg1 = theta1_start + diff_theta1 * d;
+    int deg2 = theta2_start + diff_theta2 * d;
+    krs.write(KRS_ID_ROOT, deg1);
+    krs.write(KRS_ID_ELBOW, deg2);
+    delayMicroseconds(delay_microsec);
+  }
 }
-
 
 
 void loop() {

@@ -25,15 +25,15 @@ Servo servo_vertical, servo_right, servo_left;
 
 void setup() {
   // Software Serial for PC
-  //Serial2.begin(9600);
+  Serial2.begin(9600);
   
   // Hardware Serial for Servo
   krs.begin();
 
   // PWM servo
   servo_vertical.attach(SERVO_VERTICAL);
-  //servo_left.attach(SERVO_LEFT);
-  //servo_right.attach(SERVO_RIGHT);
+  servo_left.attach(SERVO_LEFT);
+  servo_right.attach(SERVO_RIGHT);
 
   // Relay for electromagnets
   pinMode(RELAY_VOLTAGE, OUTPUT);
@@ -43,7 +43,7 @@ void setup() {
 
   pinMode(LED, OUTPUT);
   
-  //Serial2.println("Start!");
+  Serial2.println("Start!");
   digitalWrite(LED, HIGH);
 }
 

@@ -51,13 +51,13 @@ const int HOLD_DEG_UP[2] = {162, 23};
 const int HOLD_DEG_OPEN[2] = {142, 43};
 const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define VERTICAL_DEG_UP 20
-#define VERTICAL_DEG_SUPPLY 50
+#define VERTICAL_DEG_SUPPLY 45
 #define VERTICAL_DEG_BOARD 176
 
 // krs servo neutral position
 #define KRS_NEUTRAL_ROOT 7500
 #define KRS_NEUTRAL_ELBOW 6157
-#define KRS_NEUTRAL_DISC_SUPPLY 7500
+#define KRS_NEUTRAL_DISC_SUPPLY 4833
 
 // hardware constant length (mm) / deg
 #define LEN_ARM_ROOT 185.000
@@ -66,6 +66,8 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define LEN_ROBOT_TO_BOARD_Y 144.424
 #define LEN_CENTER_TO_CELL_X 15.750
 #define LEN_CELL_SIZE 29.500
+#define DISC_SUPPLY_X 157.719
+#define DISC_SUPPLY_Y 7.674
 
 void setup() {
   // Software Serial for PC
@@ -127,9 +129,29 @@ void raise_arm() {
   //move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 2);
 }
 
+void off_relay() {
+  digitalWrite(RELAY_VOLTAGE, LOW);
+  digitalWrite(RELAY_POLARITY, LOW);
+  digitalWrite(RELAY_RIGHT, LOW);
+  digitalWrite(RELAY_LEFT, LOW);
+}
+
 void hold_disc_board(int rl, int bw) {
   digitalWrite(RELAY_VOLTAGE, VOLTAGE_12V);
   digitalWrite(RELAY_POLARITY, POLARITY[rl][bw]);
+  if (rl == RIGHT) {
+    digitalWrite(RELAY_RIGHT, HIGH);
+    digitalWrite(RELAY_LEFT, LOW);
+  } else {
+    digitalWrite(RELAY_RIGHT, LOW);
+    digitalWrite(RELAY_LEFT, HIGH);
+  }
+  delay(200);
+}
+
+void hold_disc_supply(int rl) {
+  digitalWrite(RELAY_VOLTAGE, VOLTAGE_12V);
+  digitalWrite(RELAY_POLARITY, POLARITY[rl][BLACK]);
   if (rl == RIGHT) {
     digitalWrite(RELAY_RIGHT, HIGH);
     digitalWrite(RELAY_LEFT, LOW);
@@ -171,10 +193,8 @@ void put_disc(int rl, int bw) {
   } else {
     digitalWrite(RELAY_LEFT, HIGH);
   }
-  servo_vertical.write(VERTICAL_DEG_UP);
-  delay(100);
-  digitalWrite(RELAY_VOLTAGE, LOW);
-  digitalWrite(RELAY_POLARITY, LOW);
+  raise_arm();
+  off_relay();
 }
 
 int convert_to_krs_diff(double deg) { // from neutral
@@ -244,6 +264,33 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   }
 }
 
+void get_disc(int rl) {
+  int deg_get = KRS_NEUTRAL_DISC_SUPPLY + convert_to_krs_diff(180.0);
+  krs.setPos(KRS_ID_DISC_SUPPLY, deg_get);
+  delay(600);
+  // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_get) > 40) {
+  //   delay(10);
+  // }
+  for (int i = 0; i < 3; ++i) {
+    krs.setPos(KRS_ID_DISC_SUPPLY, deg_get + 100);
+    delay(80);
+    krs.setPos(KRS_ID_DISC_SUPPLY, deg_get - 100);
+    delay(80);
+  }
+  int deg_set = KRS_NEUTRAL_DISC_SUPPLY;
+  krs.setPos(KRS_ID_DISC_SUPPLY, deg_set);
+  delay(500);
+  // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_set) > 40) {
+  //   delay(10);
+  // }
+  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl, 5);
+  servo_vertical.write(VERTICAL_DEG_SUPPLY);
+  delay(100);
+  hold_disc_supply(rl);
+  servo_vertical.write(VERTICAL_DEG_UP);
+  delay(100);
+}
+
 double calc_x_mm(int cell) {
   int x = cell % HW;
   double res = 0.0;
@@ -293,6 +340,7 @@ void loop() {
   delay(2000);
   */
   
+  /*
   int cell = 36;
   move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
   lower_arm(RIGHT);
@@ -313,5 +361,26 @@ void loop() {
   lower_arm(LEFT);
   put_disc(LEFT, WHITE);
   delay(1000);
-  
+  */
+
+  {
+    get_disc(RIGHT);
+    int cell = 37;
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+    lower_arm(RIGHT);
+    put_disc(RIGHT, BLACK);
+  }
+  {
+    int cell = 36;
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 5);
+    lower_arm(RIGHT);
+    hold_disc_board(RIGHT, WHITE);
+    raise_arm();
+    flip_disc(RIGHT, WHITE);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 5);
+    lower_arm(LEFT);
+    put_disc(LEFT, BLACK);
+    delay(1000);
+  }
+  for (;;);
 }

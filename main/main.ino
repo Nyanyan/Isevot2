@@ -57,10 +57,11 @@ const int HOLD_DEG_CLOSE[2] = {70, 70};
 #define KRS_NEUTRAL_ELBOW 6833
 #define KRS_NEUTRAL_DISC_SUPPLY 7500
 
-// length (mm)
+// hardware constant length (mm) / deg
 #define LEN_ARM_ROOT 150
 #define LEN_ARM_ELBOW 160
 #define LEN_ROBOT_BOARD_MIN_Y 80
+#define ELBOW_FINGER_DEG 10.0
 
 void setup() {
   // Software Serial for PC
@@ -150,7 +151,7 @@ double convert_from_krs_diff(double krs_deg) { // from neutral
   return (krs_deg - 7500) * 270.0 / 8000.0;
 }
 
-void move_arm(double x_mm, double y_mm, int delay_microsec) {
+void move_arm(double x_mm, double y_mm, int rl, int delay_microsec) {
   double r2 = x_mm * x_mm + y_mm * y_mm
   double r = sqrt(r2);
   double L1 = LEN_ARM_ROOT;
@@ -160,6 +161,11 @@ void move_arm(double x_mm, double y_mm, int delay_microsec) {
   double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
   double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;
+  if (rl == RIGHT) {
+    theta2 += ELBOW_FINGER_DEG;
+  } else {
+    theta2 -= ELBOW_FINGER_DEG;
+  }
   int theta1_converted = convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
   int theta2_converted = convert_to_krs_deg(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
   int theta1_start = krs.getPos(KRS_ID_ROOT);

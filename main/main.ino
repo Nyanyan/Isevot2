@@ -46,6 +46,11 @@ const int HOLD_DEG_CLOSE[2] = {70, 70};
 #define VERTICAL_DEG_BOARD 80
 #define VERTICAL_DEG_SUPPLY 50
 
+// length (mm)
+#define LEN_ARM_ROOT 150
+#define LEN_ARM_FINGER 160
+#define LEN_ROBOT_BOARD_MIN_Y 80
+
 void setup() {
   // Software Serial for PC
   Serial2.begin(9600);
@@ -126,8 +131,17 @@ void flip_disc(int rl_from, int bw_from) {
   }
 }
 
-void move_arm(int x_mm, int y_mm, int delay_microsec_per_deg) {
-
+void move_arm(double x_mm, double y_mm, int delay_microsec_per_deg) {
+  double r2 = x_mm * x_mm + y_mm * y_mm
+  double r = sqrt(r2);
+  double L1 = LEN_ARM_ROOT;
+  double L2 = LEN_ARM_FINGER;
+  double L12 = L1 * L1;
+  double L22 = L2 * L2;
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2));
+  double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r));
+  double theta1 = acos(x_mm / r) + theta3;
+  
 }
 
 

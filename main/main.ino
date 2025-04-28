@@ -119,13 +119,14 @@ void lower_arm(int rl) {
   hold_servo[rl ^ 1].write(HOLD_DEG_UP[rl ^ 1]);
   delay(50);
   servo_vertical.write(VERTICAL_DEG_BOARD);
-  delay(300);
+  delay(350);
   //move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, 2);
 }
 
 void raise_arm() {
   servo_vertical.write(VERTICAL_DEG_UP);
-  delay(300);
+  delay(350);
+  open_hand();
   //move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 2);
 }
 
@@ -162,10 +163,20 @@ void hold_disc_supply(int rl) {
   delay(200);
 }
 
-void flip_disc(int rl_from, int bw_from) {
+void open_hand() {
+  for (int i = 0; i < 2; ++i) {
+    hold_servo[i].write(HOLD_DEG_OPEN[i]);
+  }
+}
+
+void close_hand() {
   for (int i = 0; i < 2; ++i) {
     hold_servo[i].write(HOLD_DEG_CLOSE[i]);
   }
+}
+
+void flip_disc(int rl_from, int bw_from) {
+  close_hand();
   delay(200);
   digitalWrite(RELAY_RIGHT, HIGH);
   digitalWrite(RELAY_LEFT, HIGH);
@@ -265,21 +276,22 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
 }
 
 void get_disc(int rl) {
+  open_hand();
   int deg_get = KRS_NEUTRAL_DISC_SUPPLY + convert_to_krs_diff(180.0);
   krs.setPos(KRS_ID_DISC_SUPPLY, deg_get);
-  delay(600);
+  delay(500);
   // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_get) > 40) {
   //   delay(10);
   // }
   for (int i = 0; i < 3; ++i) {
     krs.setPos(KRS_ID_DISC_SUPPLY, deg_get + 100);
-    delay(80);
+    delay(60);
     krs.setPos(KRS_ID_DISC_SUPPLY, deg_get - 100);
-    delay(80);
+    delay(60);
   }
   int deg_set = KRS_NEUTRAL_DISC_SUPPLY;
   krs.setPos(KRS_ID_DISC_SUPPLY, deg_set);
-  delay(500);
+  delay(400);
   // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_set) > 40) {
   //   delay(10);
   // }
@@ -309,6 +321,24 @@ double calc_y_mm(int cell) {
   double res = LEN_ROBOT_TO_BOARD_Y;
   res += LEN_CELL_SIZE * y;
   return res;
+}
+
+void set_starting_board() {
+  const int cells[4] = {27, 28, 35, 36};
+  const int colors[4] = {WHITE, BLACK, BLACK, WHITE};
+  for (int i = 0; i < 4; ++i) {
+    get_disc(RIGHT);
+    if (colors[i] == BLACK) {
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), RIGHT, 5);
+      lower_arm(RIGHT);
+      put_disc(RIGHT, BLACK);
+    } else {
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), LEFT, 5);
+      flip_disc(RIGHT, BLACK);
+      lower_arm(LEFT);
+      put_disc(LEFT, WHITE);
+    }
+  }
 }
 
 
@@ -362,6 +392,9 @@ void loop() {
   put_disc(LEFT, WHITE);
   delay(1000);
   */
+
+
+  set_starting_board();
 
   {
     get_disc(RIGHT);

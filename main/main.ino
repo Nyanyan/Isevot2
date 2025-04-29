@@ -35,7 +35,6 @@ Servo hold_servo[2]; // right, left
 #define WHITE 1
 #define HW 8
 #define HW2 64
-
 #define PI 3.141592653589793
 
 // relay
@@ -73,6 +72,9 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
 
+// speed
+#define KRS_SERVO_SPEED 5
+
 void setup() {
   // Software Serial for PC
   Serial2.begin(9600);
@@ -101,7 +103,7 @@ void setup() {
   }
   
   delay(1000);
-  Serial.println("Start!");
+  Serial2.println("Start!");
   digitalWrite(LED, HIGH);
 }
 
@@ -124,14 +126,14 @@ void lower_arm(int rl) {
   delay(50);
   servo_vertical.write(VERTICAL_DEG_BOARD);
   delay(350);
-  //move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, 2);
+  //move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, KRS_SERVO_SPEED);
 }
 
 void raise_arm() {
   servo_vertical.write(VERTICAL_DEG_UP);
   delay(350);
   open_hand();
-  //move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, 2);
+  //move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, KRS_SERVO_SPEED);
 }
 
 void off_relay() {
@@ -228,12 +230,6 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
   double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;
-  
-  Serial.print(theta1);
-  Serial.print(' ');
-  Serial.print(theta2);
-  Serial.print(' ');
-  Serial.println(theta3);
 
   if (rl == RIGHT) {
     theta2 -= ELBOW_FINGER_DEG;
@@ -242,42 +238,26 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   }
   int theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
   int theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
-  
-  Serial.print(theta1_converted);
-  Serial.print(' ');
-  Serial.println(theta2_converted);
 
   int theta1_start = krs.getPos(KRS_ID_ROOT);
   int theta2_start = krs.getPos(KRS_ID_ELBOW);
-  Serial.print(theta1_start);
-  Serial.print(' ');
-  Serial.println(theta2_start);
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
-  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0 / 2.0);
-  if (step < 5) {
-    step = 5;
+  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
+  if (step < 45) {
+    step = 45;
   }
   for (int i = 0; i < step; ++i) {
     double d = (1.0 - cos(PI / step * i)) * 0.5;
     int deg1 = round((double)theta1_start + d * diff_theta1);
     int deg2 = round((double)theta2_start + d * diff_theta2);
-    
-    Serial.print(i);
-    Serial.print(' ');
-    Serial.print(d);
-    Serial.print(' ');
-    Serial.print(deg1);
-    Serial.print(' ');
-    Serial.println(deg2);
-
     krs.setPos(KRS_ID_ROOT, deg1);
     krs.setPos(KRS_ID_ELBOW, deg2);
     delay(delay_msec);
   }
 }
 
-void get_disc(int rl) {
+void get_disc(int rl, int bw) {
   open_hand();
   int deg_get = KRS_NEUTRAL_DISC_SUPPLY + convert_to_krs_diff(180.0);
   krs.setPos(KRS_ID_DISC_SUPPLY, deg_get);
@@ -297,12 +277,20 @@ void get_disc(int rl) {
   // while (abs(krs.getPos(KRS_ID_DISC_SUPPLY) - deg_set) > 40) {
   //   delay(10);
   // }
-  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl, 2);
+  int rl_get = rl;
+  if (bw == WHITE) {
+    rl_get ^= 1;
+  }
+  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl_get, KRS_SERVO_SPEED);
   servo_vertical.write(VERTICAL_DEG_SUPPLY);
   delay(100);
-  hold_disc_supply(rl);
+  hold_disc_supply(rl_get);
   servo_vertical.write(VERTICAL_DEG_UP);
   delay(100);
+  if (bw == WHITE) {
+    move_arm(NOPOS_X, NOPOS_Y, rl_get, KRS_SERVO_SPEED);
+    flip_disc(rl_get, BLACK);
+  }
 }
 
 double calc_x_mm(int cell) {
@@ -332,11 +320,11 @@ void set_starting_board() {
   for (int i = 0; i < 4; ++i) {
     get_disc(RIGHT);
     if (colors[i] == BLACK) {
-      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), RIGHT, 2);
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), RIGHT, KRS_SERVO_SPEED);
       lower_arm(RIGHT);
       put_disc(RIGHT, BLACK);
     } else {
-      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), LEFT, 2);
+      move_arm(calc_x_mm(cells[i]), calc_y_mm(cells[i]), LEFT, KRS_SERVO_SPEED);
       flip_disc(RIGHT, BLACK);
       lower_arm(LEFT);
       put_disc(LEFT, WHITE);
@@ -344,17 +332,15 @@ void set_starting_board() {
   }
   */
   for (int i = 0; i < 4; i += 2) {
-    get_disc(RIGHT);
-    move_arm(NOPOS_X, NOPOS_Y, RIGHT, 2);
-    flip_disc(RIGHT, BLACK);
-    get_disc(RIGHT);
+    get_disc(LEFT, WHITE);
+    get_disc(RIGHT, BLACK);
     for (int j = i; j < i + 2; ++j) {
       if (colors[j] == BLACK) {
-        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), RIGHT, 2);
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), RIGHT, KRS_SERVO_SPEED);
         lower_arm(RIGHT);
         put_disc(RIGHT, BLACK);
       } else {
-        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), LEFT, 2);
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), LEFT, KRS_SERVO_SPEED);
         lower_arm(LEFT);
         put_disc(LEFT, WHITE);
       }
@@ -363,7 +349,7 @@ void set_starting_board() {
 }
 
 void set_home() {
-  move_arm(HOME_X, HOME_Y, RIGHT, 2);
+  move_arm(HOME_X, HOME_Y, RIGHT, KRS_SERVO_SPEED);
 }
 
 
@@ -373,9 +359,6 @@ void loop() {
     delay(1000);
     double x = calc_x_mm(cell);
     double y = calc_y_mm(cell);
-    Serial.print(x);
-    Serial.print(' ');
-    Serial.println(y);
     move_arm(x, y, RIGHT, 10);
   }
   */
@@ -397,49 +380,71 @@ void loop() {
   
   /*
   int cell = 36;
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
   lower_arm(RIGHT);
   hold_disc_board(RIGHT, WHITE);
   raise_arm();
   flip_disc(RIGHT, WHITE);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
   lower_arm(LEFT);
   put_disc(LEFT, BLACK);
   delay(1000);
   
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
   lower_arm(RIGHT);
   hold_disc_board(RIGHT, BLACK);
   raise_arm();
   flip_disc(RIGHT, BLACK);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
+  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
   lower_arm(LEFT);
   put_disc(LEFT, WHITE);
   delay(1000);
   */
 
   set_home();
-
   set_starting_board();
+  set_home();
 
   {
-    get_disc(RIGHT);
     int cell = 37;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
+    get_disc(RIGHT, BLACK);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
     lower_arm(RIGHT);
     put_disc(RIGHT, BLACK);
   }
   
   {
     int cell = 36;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, 2);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
     lower_arm(RIGHT);
     hold_disc_board(RIGHT, WHITE);
     raise_arm();
     flip_disc(RIGHT, WHITE);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
     lower_arm(LEFT);
     put_disc(LEFT, BLACK);
+  }
+
+  set_home();
+
+  {
+    int cell = 43;
+    get_disc(RIGHT, WHITE);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+    lower_arm(RIGHT);
+    put_disc(RIGHT, WHITE);
+  }
+  
+  {
+    int cell = 35;
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+    lower_arm(RIGHT);
+    hold_disc_board(RIGHT, BLACK);
+    raise_arm();
+    flip_disc(RIGHT, BLACK);
+    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
+    lower_arm(LEFT);
+    put_disc(LEFT, WHITE);
   }
 
   set_home();

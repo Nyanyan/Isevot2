@@ -69,7 +69,9 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
 #define HOME_X -110.0
-#define HOME_Y 110.0
+#define HOME_Y 100.0
+#define NOPOS_X 130.0
+#define NOPOS_Y 100.0
 
 void setup() {
   // Software Serial for PC
@@ -157,9 +159,7 @@ void hold_disc_supply(int rl) {
   digitalWrite(RELAY_POLARITY, POLARITY[rl][BLACK]);
   if (rl == RIGHT) {
     digitalWrite(RELAY_RIGHT, HIGH);
-    digitalWrite(RELAY_LEFT, LOW);
   } else {
-    digitalWrite(RELAY_RIGHT, LOW);
     digitalWrite(RELAY_LEFT, HIGH);
   }
   delay(200);
@@ -208,6 +208,16 @@ void put_disc(int rl, int bw) {
   }
   raise_arm();
   off_relay();
+}
+
+void put_disc_simple(int rl) {
+  if (rl == RIGHT) {
+    digitalWrite(RELAY_RIGHT, LOW);
+  } else {
+    digitalWrite(RELAY_LEFT, LOW);
+  }
+  delay(100);
+  raise_arm();
 }
 
 int convert_to_krs_diff(double deg) { // from neutral
@@ -328,6 +338,7 @@ double calc_y_mm(int cell) {
 void set_starting_board() {
   const int cells[4] = {27, 28, 35, 36};
   const int colors[4] = {WHITE, BLACK, BLACK, WHITE};
+  /*
   for (int i = 0; i < 4; ++i) {
     get_disc(RIGHT);
     if (colors[i] == BLACK) {
@@ -339,6 +350,26 @@ void set_starting_board() {
       flip_disc(RIGHT, BLACK);
       lower_arm(LEFT);
       put_disc(LEFT, WHITE);
+    }
+  }
+  */
+  for (int i = 0; i < 4; i += 2) {
+    get_disc(RIGHT);
+    move_arm(NOPOS_X, NOPOS_Y, RIGHT, 2);
+    flip_disc(RIGHT, BLACK);
+    get_disc(RIGHT);
+    for (int j = i; j < i + 2; ++j) {
+      if (colors[j] == BLACK) {
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), RIGHT, 2);
+        lower_arm(RIGHT);
+        //put_disc_simple(RIGHT);
+        put_disc(RIGHT, BLACK);
+      } else {
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), LEFT, 2);
+        lower_arm(LEFT);
+        //put_disc_simple(LEFT);
+        put_disc(LEFT, WHITE);
+      }
     }
   }
 }
@@ -421,7 +452,6 @@ void loop() {
     move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, 2);
     lower_arm(LEFT);
     put_disc(LEFT, BLACK);
-    delay(1000);
   }
   set_home();
   for (;;);

@@ -67,8 +67,8 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define LEN_CELL_SIZE 29.500
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
-#define HOME_X -110.0
-#define HOME_Y 100.0
+#define HOME_RIGHT_X -112.021
+#define HOME_RIGHT_Y 75.948
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
 
@@ -349,7 +349,7 @@ void set_starting_board() {
 }
 
 void set_home() {
-  move_arm(HOME_X, HOME_Y, RIGHT, KRS_SERVO_SPEED);
+  move_arm(HOME_RIGHT_X, HOME_RIGHT_Y, RIGHT, KRS_SERVO_SPEED);
 }
 
 

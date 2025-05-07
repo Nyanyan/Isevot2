@@ -401,6 +401,8 @@ void loop() {
   delay(1000);
   */
 
+
+  /*
   set_home();
   set_starting_board();
   set_home();
@@ -450,4 +452,55 @@ void loop() {
   set_home();
   
   for (;;);
+
+  */
+
+  set_home();
+  for (;;) {
+    if (Serial2.available()) {
+      char cmd = Serial2.read();
+      if (cmd == 'p') { // put color x y
+        while (Serial2.available() < 3);
+        char color_char = Serial2.read();
+        char x = Serial2.read();
+        char y = Serial2.read();
+        int color = (color_char == 'b') ? BLACK : WHITE;
+        int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+        if (color == BLACK) {
+          get_disc(RIGHT, BLACK);
+        } else {
+          get_disc(LEFT, BLACK);
+        }
+        move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+        if (color == WHITE) {
+          flip_disc(LEFT, BLACK);
+        }
+        lower_arm(RIGHT);
+        put_disc(RIGHT, color);
+        Serial2.print('c');
+      } else if (cmd == 'f') { // flip color x y
+        while (Serial2.available() < 3);
+        char color_char = Serial2.read();
+        char x = Serial2.read();
+        char y = Serial2.read();
+        int color = (color_char == 'b') ? BLACK : WHITE;
+        int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+        move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+        lower_arm(RIGHT);
+        hold_disc_board(RIGHT, color);
+        raise_arm();
+        flip_disc(RIGHT, color);
+        move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
+        lower_arm(LEFT);
+        put_disc(LEFT, color ^ 1);
+        Serial2.print('c');
+      } else if (cmd == 'h') { // home
+        set_home();
+        Serial2.print('c');
+      } else if (cmd == 'i') { // set initial board
+        set_starting_board();
+        Serial2.print('c');
+      }
+    }
+  }
 }

@@ -69,7 +69,7 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define DISC_SUPPLY_Y 7.674
 #define HOME_RIGHT_X -112.021
 #define HOME_RIGHT_Y 75.948
-#define CAMERA_RIGHT_X 189.425
+#define CAMERA_RIGHT_X -189.425
 #define CAMERA_RIGHT_Y 75.176
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0

@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 
+BLACK = 0
+WHITE = 1
+EMPTY = 2
+
 # グローバル変数でクリックした座標を保存
 #points = []
 points = [(190, 226), (98, 365), (512, 368), (416, 226)]
@@ -18,6 +22,8 @@ def analyze_cell_colors_and_display(warped, divisions):
     """セル内のピクセルを黒、白、緑に分類し、割合を計算し、グリッドに表示"""
     step = warped.shape[0] // divisions
     color_grid = np.zeros((warped.shape[0], warped.shape[1], 3), dtype=np.uint8)  # グリッド用の画像
+
+    res = []
 
     for i in range(divisions):
         for j in range(divisions):
@@ -43,8 +49,12 @@ def analyze_cell_colors_and_display(warped, divisions):
             circle_color = (-1, -1, -1)
             if black_ratio > 30.0:
                 circle_color = (0, 0, 0) # 黒
+                res.append(BLACK)
             elif white_ratio > 30.0:
                 circle_color = (255, 255, 255) # 白
+                res.append(WHITE)
+            else:
+                res.append(EMPTY)
             #else:
             #    color = (0, 255, 0)  # 緑
 
@@ -56,6 +66,8 @@ def analyze_cell_colors_and_display(warped, divisions):
 
     # 別画面にグリッドを表示
     cv2.imshow("Board", color_grid)
+
+    return res
 
 def draw_grid_and_analyze(frame, points):
     """正方形を8×8に分割して描画し、各セルの色を分析"""
@@ -85,12 +97,13 @@ def draw_grid_and_analyze(frame, points):
             cv2.line(warped, (i * step, 0), (i * step, square_size), (0, 255, 0), 1)
 
         # セル内の色を分析して別画面に表示
-        analyze_cell_colors_and_display(warped, divisions)
+        return analyze_cell_colors_and_display(warped, divisions)
 
         # 元のフレームに逆射影変換でグリッドを戻す
         #inverse_matrix = cv2.getPerspectiveTransform(dst_points, np.array(points, dtype="float32"))
         #grid_overlay = cv2.warpPerspective(warped, inverse_matrix, (frame.shape[1], frame.shape[0]))
         #frame[:] = cv2.addWeighted(frame, 1, grid_overlay, 0.2, 0)
+    return None
 
 def capture_webcam():
     # Webカメラを初期化 (デフォルトのカメラはID 0)
@@ -136,7 +149,9 @@ def capture_webcam():
             adjustment = 127 - brightness
             frame = cv2.convertScaleAbs(frame, alpha=1, beta=adjustment)
 
-            draw_grid_and_analyze(frame, points)
+            board = draw_grid_and_analyze(frame, points)
+            if board is not None:
+                print("Board:", board)
 
         # フレームを表示
         cv2.imshow('Camera', frame)

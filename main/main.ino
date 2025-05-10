@@ -69,6 +69,8 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define DISC_SUPPLY_Y 7.674
 #define HOME_RIGHT_X -112.021
 #define HOME_RIGHT_Y 75.948
+#define CAMERA_RIGHT_X 189.425
+#define CAMERA_RIGHT_Y 75.176
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
 
@@ -352,6 +354,10 @@ void set_home() {
   move_arm(HOME_RIGHT_X, HOME_RIGHT_Y, RIGHT, KRS_SERVO_SPEED);
 }
 
+void set_camera() {
+  move_arm(CAMERA_RIGHT_X, CAMERA_RIGHT_Y, RIGHT, KRS_SERVO_SPEED);
+}
+
 
 void loop() {
   /*
@@ -477,7 +483,7 @@ void loop() {
         }
         lower_arm(RIGHT);
         put_disc(RIGHT, color);
-        Serial2.print('c');
+        Serial2.print('0');
       } else if (cmd == 'f') { // flip color x y
         while (Serial2.available() < 3);
         char color_char = Serial2.read();
@@ -493,13 +499,16 @@ void loop() {
         move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
         lower_arm(LEFT);
         put_disc(LEFT, color ^ 1);
-        Serial2.print('c');
+        Serial2.print('0');
       } else if (cmd == 'h') { // home
         set_home();
-        Serial2.print('c');
+        Serial2.print('0');
+      } else if (cmd == 'c') { // camera
+        set_camera();
+        Serial2.print('0');
       } else if (cmd == 'i') { // set initial board
         set_starting_board();
-        Serial2.print('c');
+        Serial2.print('0');
       }
     }
   }

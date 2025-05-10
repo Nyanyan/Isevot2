@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 
 # グローバル変数でクリックした座標を保存
-points = []
+#points = []
+points = [(190, 226), (98, 365), (512, 368), (416, 226)]
 
 def mouse_callback(event, x, y, flags, param):
     """マウスイベントのコールバック関数"""
@@ -27,8 +28,8 @@ def analyze_cell_colors_and_display(warped, divisions):
             total_pixels = cell.shape[0] * cell.shape[1]
 
             # 各ピクセルを黒、白、緑に分類
-            black = np.sum(np.all(cell < [190, 190, 160], axis=2))  # 黒: RGBが100未満
-            white = np.sum(np.all(cell > [220, 220, 220], axis=2))  # 白: RGBが200以上
+            black = np.sum(np.all(cell < [150, 140, 150], axis=2))  # 黒: RGBが100未満
+            white = np.sum(np.all(cell > [200, 200, 200], axis=2))  # 白: RGBが200以上
             #green = np.sum((cell[:, :, 1] > 100) & (cell[:, :, 0] < 100) & (cell[:, :, 2] < 100))  # 緑: Gが高く、RとBが低い
             #green = total_pixels - black - white
 
@@ -51,7 +52,7 @@ def analyze_cell_colors_and_display(warped, divisions):
             cv2.rectangle(color_grid, (i * step, j * step), ((i + 1) * step, (j + 1) * step), (0, 255, 50), -1)
             cv2.rectangle(color_grid, (i * step, j * step), ((i + 1) * step, (j + 1) * step), (0, 0, 0), 1)
             if circle_color != (-1, -1, -1):
-                cv2.circle(color_grid, (i * step + step // 2, j * step + step // 2), step // 3, circle_color, -1)
+                cv2.circle(color_grid, (i * step + step // 2, j * step + step // 2), round(step / 2.5), circle_color, -1)
 
     # 別画面にグリッドを表示
     cv2.imshow("Board", color_grid)
@@ -87,9 +88,9 @@ def draw_grid_and_analyze(frame, points):
         analyze_cell_colors_and_display(warped, divisions)
 
         # 元のフレームに逆射影変換でグリッドを戻す
-        inverse_matrix = cv2.getPerspectiveTransform(dst_points, np.array(points, dtype="float32"))
-        grid_overlay = cv2.warpPerspective(warped, inverse_matrix, (frame.shape[1], frame.shape[0]))
-        frame[:] = cv2.addWeighted(frame, 1, grid_overlay, 0.5, 0)
+        #inverse_matrix = cv2.getPerspectiveTransform(dst_points, np.array(points, dtype="float32"))
+        #grid_overlay = cv2.warpPerspective(warped, inverse_matrix, (frame.shape[1], frame.shape[0]))
+        #frame[:] = cv2.addWeighted(frame, 1, grid_overlay, 0.2, 0)
 
 def capture_webcam():
     # Webカメラを初期化 (デフォルトのカメラはID 0)
@@ -106,6 +107,15 @@ def capture_webcam():
     while True:
         # フレームを取得
         ret, frame = cap.read()
+
+        # フレームのコントラストを上げる
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        lab = cv2.merge((l, a, b))
+        frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
         if not ret:
             print('Cannot receive a frame')
             break
@@ -118,6 +128,14 @@ def capture_webcam():
 
         # 4点が取得された場合、正方形を8×8に分割して描画し、セルの色を分析
         if len(points) == 4:
+            # 4点で囲われた範囲の明るさの平均値を127に調整
+            mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+            cv2.fillPoly(mask, [np.array(points, dtype=np.int32)], 255)
+            mean_val = cv2.mean(frame, mask=mask)[:3]
+            brightness = np.mean(mean_val)
+            adjustment = 127 - brightness
+            frame = cv2.convertScaleAbs(frame, alpha=1, beta=adjustment)
+
             draw_grid_and_analyze(frame, points)
 
         # フレームを表示

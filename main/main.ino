@@ -503,7 +503,7 @@ void loop() {
       lower_arm(RIGHT);
       put_disc(RIGHT, color);
       Serial2.print('0');
-    } else if (cmd == 'f') { // flip color x y
+    } else if (cmd == 'f') { // flip color_from x y
       while (Serial2.available() < 3);
       char color_char = Serial2.read();
       char x = Serial2.read();

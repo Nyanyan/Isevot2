@@ -1,0 +1,203 @@
+# 定数
+HW = 8
+HW2 = 64
+dy = [0, 1, 0, -1, 1, 1, -1, -1]
+dx = [1, 0, -1, 0, 1, -1, 1, -1]
+BLACK = 0
+WHITE = 1
+EMPTY = 2
+
+# 座標(y, x)が盤面内にあるかを見る関数
+def inside(y, x):
+    return 0 <= y < HW and 0 <= x < HW
+
+# オセロのクラス
+class Othello:
+    
+    # 初期化
+    def __init__(self):
+        
+        # 盤面の状態 0: 黒 1: 白 2: 空
+        self.grid = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+        self.grid[3][3] = WHITE
+        self.grid[3][4] = BLACK
+        self.grid[4][3] = BLACK
+        self.grid[4][4] = WHITE
+        
+        # プレーヤー情報 0: 黒 1: 白 -1: 終局
+        self.player = BLACK
+        
+        # 石数 n_discs[0]: 黒 n_discs[1]: 白
+        self.n_discs = [2, 2]
+
+    def __init__(self, board_arr, player):
+        
+        # 盤面の状態 0: 黒 1: 白 2: 空
+        self.grid = board_arr
+
+        # プレーヤー情報 0: 黒 1: 白 -1: 終局
+        self.player = player
+        
+        # 石数 n_discs[0]: 黒 n_discs[1]: 白
+        self.n_discs = [0, 0]
+        for y in range(HW):
+            for x in range(HW):
+                if self.grid[y][x] == BLACK:
+                    self.n_discs[0] += 1
+                elif self.grid[y][x] == WHITE:
+                    self.n_discs[1] += 1
+    
+    
+    # 合法手生成 合法手の位置をTrueにした配列を返す
+    def get_legal(self):
+        # 合法手をTrueにする配列
+        legal_moves = [[False for _ in range(HW)] for _ in range(HW)]
+
+        # 各マスについて合法かどうかチェック
+        for y in range(HW):
+            for x in range(HW):
+                # すでに石が置いてあれば必ず非合法
+                if self.grid[y][x] != EMPTY:
+                    continue
+                
+                # 8方向それぞれ合法か見ていく
+                legal_flag = False
+                for dr in range(8):
+                    dr_legal_flag1 = False
+                    dr_legal_flag2 = False
+                    ny = y
+                    nx = x
+                    for _ in range(HW - 1):
+                        ny += dy[dr]
+                        nx += dx[dr]
+                        if not inside(ny, nx):
+                            dr_legal_flag1 = False
+                            break
+                        elif self.grid[ny][nx] == EMPTY:
+                            dr_legal_flag1 = False
+                            break
+                        elif self.grid[ny][nx] != self.player:
+                            dr_legal_flag1 = True
+                        elif self.grid[ny][nx] == self.player:
+                            dr_legal_flag2 = True
+                            break
+                    if dr_legal_flag1 and dr_legal_flag2:
+                        legal_flag = True
+                        break
+                
+                # 合法だったらgridの値を更新
+                if legal_flag:
+                    legal_moves[y][x] = True
+        
+        return legal_moves
+    
+    def has_legal(self):
+        legal_moves = self.get_legal()
+        for y in range(HW):
+            for x in range(HW):
+                if legal_moves[y][x]:
+                    return True
+        return False
+
+    # 返る石を返す    
+    def get_flipped(self, y, x):
+        # 置けるかの判定
+        if not inside(y, x):
+            print('盤面外です')
+            return None
+        legal_moves = self.get_legal()
+        if not legal_moves[y][x]:
+            print('非合法手です')
+            return None
+
+        flipped = [[False for _ in range(HW)] for _ in range(HW)]
+        # 8方向それぞれ合法か見ていき、合法ならひっくり返す
+        for dr in range(8):
+            dr_legal_flag = False
+            dr_n_flipped = 0
+            ny = y
+            nx = x
+            for d in range(HW - 1):
+                ny += dy[dr]
+                nx += dx[dr]
+                if not inside(ny, nx):
+                    dr_legal_flag = False
+                    break
+                elif self.grid[ny][nx] == EMPTY:
+                    dr_legal_flag = False
+                    break
+                elif self.grid[ny][nx] != self.player:
+                    dr_legal_flag = True
+                elif self.grid[ny][nx] == self.player:
+                    dr_n_flipped = d
+                    break
+            if dr_legal_flag:
+                for d in range(dr_n_flipped):
+                    ny = y + dy[dr] * (d + 1)
+                    nx = x + dx[dr] * (d + 1)
+                    flipped[ny][nx] = True
+
+        return flipped
+    
+    # 着手 着手成功ならTrueが、失敗したらFalseが返る
+    def move(self, y, x):
+        flipped = self.get_flipped(y, x)
+        if flipped is None:
+            return False
+        
+        # 着手
+        n_flipped = 0
+        for y in range(HW):
+            for x in range(HW):
+                if flipped[y][x]:
+                    self.grid[y][x] = self.player
+                    n_flipped += 1
+        
+        # 着手部分の更新
+        self.grid[y][x] = self.player
+        
+        # 石数の更新
+        self.n_discs[self.player] += n_flipped + 1
+        self.n_discs[1 - self.player] -= n_flipped
+        
+        # 手番の更新
+        self.player = 1 - self.player
+
+        return True
+
+    # 標準入力からの入力で着手を行う
+    def move_stdin(self):
+        coord = input(('黒' if self.player == BLACK else '白') + ' 着手: ')
+        try:
+            y = int(coord[1]) - 1
+            x = ord(coord[0]) - ord('A')
+            if not inside(y, x):
+                x = ord(coord[0]) - ord('a')
+                if not inside(y, x):
+                    print('座標を A1 や c5 のように入力してください')
+                    self.move_stdin()
+                    return
+            if not self.move(y, x):
+                self.move_stdin()
+        except:
+            print('座標を A1 や c5 のように入力してください')
+            self.move_stdin()
+    
+    
+    # 盤面などの情報を表示
+    def print(self):
+        #盤面表示 X: 黒 O: 白 *: 合法手 .: 非合法手
+        print('  A B C D E F G H')
+        for y in range(HW):
+            print(y + 1, end=' ')
+            for x in range(HW):
+                if self.grid[y][x] == BLACK:
+                    print('X', end=' ')
+                elif self.grid[y][x] == WHITE:
+                    print('O', end=' ')
+                else:
+                    print('.', end=' ')
+            print('')
+        
+        # 石数表示
+        print('黒 X ', self.n_discs[0], '-', self.n_discs[1], ' O 白')

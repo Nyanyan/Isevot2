@@ -1,9 +1,6 @@
 import cv2
 import numpy as np
-
-BLACK = 0
-WHITE = 1
-EMPTY = 2
+from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 # グローバル変数でクリックした座標を保存
 #points = []
@@ -23,7 +20,7 @@ def analyze_cell_colors_and_display(warped, divisions):
     step = warped.shape[0] // divisions
     color_grid = np.zeros((warped.shape[0], warped.shape[1], 3), dtype=np.uint8)  # グリッド用の画像
 
-    res = []
+    board_arr = [[EMPTY for _ in range(HW2)] for _ in range(HW2)]
 
     for i in range(divisions):
         for j in range(divisions):
@@ -49,12 +46,10 @@ def analyze_cell_colors_and_display(warped, divisions):
             circle_color = (-1, -1, -1)
             if black_ratio > 30.0:
                 circle_color = (0, 0, 0) # 黒
-                res.append(BLACK)
+                board_arr[HW - 1 - j][HW - 1 - i] = BLACK
             elif white_ratio > 30.0:
                 circle_color = (255, 255, 255) # 白
-                res.append(WHITE)
-            else:
-                res.append(EMPTY)
+                board_arr[HW - 1 - j][HW - 1 - i] = WHITE
             #else:
             #    color = (0, 255, 0)  # 緑
 
@@ -65,9 +60,9 @@ def analyze_cell_colors_and_display(warped, divisions):
                 cv2.circle(color_grid, (i * step + step // 2, j * step + step // 2), round(step / 2.5), circle_color, -1)
 
     # 別画面にグリッドを表示
-    cv2.imshow("Board", color_grid)
+    #cv2.imshow("Board", color_grid)
 
-    return res
+    return board_arr
 
 def draw_grid_and_analyze(frame, points):
     """正方形を8×8に分割して描画し、各セルの色を分析"""
@@ -88,16 +83,15 @@ def draw_grid_and_analyze(frame, points):
         warped = cv2.warpPerspective(frame, matrix, (square_size, square_size))
 
         # グリッドを描画
-        divisions = 8
-        step = square_size // divisions
-        for i in range(1, divisions):
+        step = square_size // HW
+        for i in range(1, HW):
             # 水平線
             cv2.line(warped, (0, i * step), (square_size, i * step), (0, 255, 0), 1)
             # 垂直線
             cv2.line(warped, (i * step, 0), (i * step, square_size), (0, 255, 0), 1)
 
         # セル内の色を分析して別画面に表示
-        return analyze_cell_colors_and_display(warped, divisions)
+        return analyze_cell_colors_and_display(warped, HW)
 
         # 元のフレームに逆射影変換でグリッドを戻す
         #inverse_matrix = cv2.getPerspectiveTransform(dst_points, np.array(points, dtype="float32"))
@@ -105,64 +99,56 @@ def draw_grid_and_analyze(frame, points):
         #frame[:] = cv2.addWeighted(frame, 1, grid_overlay, 0.2, 0)
     return None
 
-def capture_webcam():
-    # Webカメラを初期化 (デフォルトのカメラはID 0)
-    cap = cv2.VideoCapture(1)
+# Webカメラを初期化 (デフォルトのカメラはID 0)
+cap = cv2.VideoCapture(1)
+if not cap.isOpened():
+    print('Cannot open camera')
+    exit()
 
-    if not cap.isOpened():
-        print('Cannot open camera')
-        return
+# ウィンドウを作成し、マウスコールバックを設定
+#cv2.namedWindow('Camera')
+#cv2.setMouseCallback('Camera', mouse_callback)
 
-    # ウィンドウを作成し、マウスコールバックを設定
-    cv2.namedWindow('Camera')
-    cv2.setMouseCallback('Camera', mouse_callback)
+def get_board():
+    # フレームを取得
+    ret, frame = cap.read()
 
-    while True:
-        # フレームを取得
-        ret, frame = cap.read()
+    # フレームのコントラストを上げる
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge((l, a, b))
+    frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-        # フレームのコントラストを上げる
-        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        l = clahe.apply(l)
-        lab = cv2.merge((l, a, b))
-        frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    if not ret:
+        print('Cannot receive a frame')
+        return None
 
-        if not ret:
-            print('Cannot receive a frame')
-            break
+    # 取得した点をフレーム上に描画
+    for i, point in enumerate(points):
+        cv2.circle(frame, point, 5, (0, 0, 255), -1)  # 赤い円を描画
+        cv2.putText(frame, f"{i+1}", (point[0] + 10, point[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)  # 点番号を描画
 
-        # 取得した点をフレーム上に描画
-        for i, point in enumerate(points):
-            cv2.circle(frame, point, 5, (0, 0, 255), -1)  # 赤い円を描画
-            cv2.putText(frame, f"{i+1}", (point[0] + 10, point[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)  # 点番号を描画
+    # 4点で囲われた範囲の明るさの平均値を127に調整
+    mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+    cv2.fillPoly(mask, [np.array(points, dtype=np.int32)], 255)
+    mean_val = cv2.mean(frame, mask=mask)[:3]
+    brightness = np.mean(mean_val)
+    adjustment = 127 - brightness
+    frame = cv2.convertScaleAbs(frame, alpha=1, beta=adjustment)
 
-        # 4点が取得された場合、正方形を8×8に分割して描画し、セルの色を分析
-        if len(points) == 4:
-            # 4点で囲われた範囲の明るさの平均値を127に調整
-            mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-            cv2.fillPoly(mask, [np.array(points, dtype=np.int32)], 255)
-            mean_val = cv2.mean(frame, mask=mask)[:3]
-            brightness = np.mean(mean_val)
-            adjustment = 127 - brightness
-            frame = cv2.convertScaleAbs(frame, alpha=1, beta=adjustment)
+    board = draw_grid_and_analyze(frame, points)
+    if board is not None:
+        print("Board:", board)
 
-            board = draw_grid_and_analyze(frame, points)
-            if board is not None:
-                print("Board:", board)
+    # フレームを表示
+    #cv2.imshow('Camera', frame)
 
-        # フレームを表示
-        cv2.imshow('Camera', frame)
+    return board
 
-        # 'q'キーで終了
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 
-    # リソースを解放
+def cleanup_camera():
     cap.release()
     cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    capture_webcam()

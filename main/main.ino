@@ -26,6 +26,8 @@ Servo hold_servo[2]; // right, left
 #define RELAY_RIGHT A1
 #define RELAY_LEFT A0
 
+#define SWITCH 8
+
 #define LED 13
 
 // constant
@@ -77,6 +79,10 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 // speed
 #define KRS_SERVO_SPEED 5
 
+// switch
+#define SWITCH_THRESHOLD 10
+int switch_state = 0;
+
 void setup() {
   // Software Serial for PC
   Serial2.begin(9600);
@@ -98,6 +104,8 @@ void setup() {
 
   pinMode(LED, OUTPUT);
 
+  pinMode(SWITCH, INPUT_PULLUP);
+
   // initialize
   servo_vertical.write(VERTICAL_DEG_UP);
   for (int i = 0; i < 2; ++i) {
@@ -107,6 +115,7 @@ void setup() {
   delay(1000);
   Serial2.println("Start!");
   digitalWrite(LED, HIGH);
+  set_home();
 }
 
 void move_vertical(int now_deg, int to_deg, int delay_msec_per_deg) {
@@ -461,55 +470,64 @@ void loop() {
 
   */
 
-  set_home();
-  for (;;) {
-    if (Serial2.available()) {
-      char cmd = Serial2.read();
-      if (cmd == 'p') { // put color x y
-        while (Serial2.available() < 3);
-        char color_char = Serial2.read();
-        char x = Serial2.read();
-        char y = Serial2.read();
-        int color = (color_char == 'b') ? BLACK : WHITE;
-        int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
-        if (color == BLACK) {
-          get_disc(RIGHT, BLACK);
-        } else {
-          get_disc(LEFT, BLACK);
-        }
-        move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-        if (color == WHITE) {
-          flip_disc(LEFT, BLACK);
-        }
-        lower_arm(RIGHT);
-        put_disc(RIGHT, color);
-        Serial2.print('0');
-      } else if (cmd == 'f') { // flip color x y
-        while (Serial2.available() < 3);
-        char color_char = Serial2.read();
-        char x = Serial2.read();
-        char y = Serial2.read();
-        int color = (color_char == 'b') ? BLACK : WHITE;
-        int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
-        move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-        lower_arm(RIGHT);
-        hold_disc_board(RIGHT, color);
-        raise_arm();
-        flip_disc(RIGHT, color);
-        move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
-        lower_arm(LEFT);
-        put_disc(LEFT, color ^ 1);
-        Serial2.print('0');
-      } else if (cmd == 'h') { // home
-        set_home();
-        Serial2.print('0');
-      } else if (cmd == 'c') { // camera
-        set_camera();
-        Serial2.print('0');
-      } else if (cmd == 'i') { // set initial board
-        set_starting_board();
-        Serial2.print('0');
+  if (!digitalRead(SWITCH)) {
+    if (switch_state < SWITCH_THRESHOLD) {
+      ++switch_state;
+    }
+  } else {
+    switch_state = 0;
+  }
+
+  if (switch_state == SWITCH_THRESHOLD) {
+    Serial2.write('s');
+  }
+
+  if (Serial2.available()) {
+    char cmd = Serial2.read();
+    if (cmd == 'p') { // put color x y
+      while (Serial2.available() < 3);
+      char color_char = Serial2.read();
+      char x = Serial2.read();
+      char y = Serial2.read();
+      int color = (color_char == 'b') ? BLACK : WHITE;
+      int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+      if (color == BLACK) {
+        get_disc(RIGHT, BLACK);
+      } else {
+        get_disc(LEFT, BLACK);
       }
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      if (color == WHITE) {
+        flip_disc(LEFT, BLACK);
+      }
+      lower_arm(RIGHT);
+      put_disc(RIGHT, color);
+      Serial2.print('0');
+    } else if (cmd == 'f') { // flip color x y
+      while (Serial2.available() < 3);
+      char color_char = Serial2.read();
+      char x = Serial2.read();
+      char y = Serial2.read();
+      int color = (color_char == 'b') ? BLACK : WHITE;
+      int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      lower_arm(RIGHT);
+      hold_disc_board(RIGHT, color);
+      raise_arm();
+      flip_disc(RIGHT, color);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
+      lower_arm(LEFT);
+      put_disc(LEFT, color ^ 1);
+      Serial2.print('0');
+    } else if (cmd == 'h') { // home
+      set_home();
+      Serial2.print('0');
+    } else if (cmd == 'c') { // camera
+      set_camera();
+      Serial2.print('0');
+    } else if (cmd == 'i') { // set initial board
+      set_starting_board();
+      Serial2.print('0');
     }
   }
 }

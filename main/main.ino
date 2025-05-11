@@ -471,7 +471,7 @@ void loop() {
   */
 
   if (!digitalRead(SWITCH)) {
-    if (switch_state < SWITCH_THRESHOLD) {
+    if (switch_state <= SWITCH_THRESHOLD) {
       ++switch_state;
     }
   } else {

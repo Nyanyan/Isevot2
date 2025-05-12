@@ -60,6 +60,11 @@ def recognize_board(transformed):
 
     for i in range(2):
         mask = disc_masks[i]
+        # 下辺以外の画像の端1ピクセルをマスクしないようにする
+        mask[0, :] = 0
+        #mask[-1, :] = 0
+        mask[:, 0] = 0
+        mask[:, -1] = 0
         # 距離変換を適用して、mask外からの距離を計算
         distance_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
 

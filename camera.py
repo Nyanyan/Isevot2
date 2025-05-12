@@ -172,7 +172,8 @@ def recognize_board(transformed):
 
     
     num_labels_discs, labels_discs = cv2.connectedComponents(filtered_distance)
-    # 各連結部分の重心点から半径256/18の円を描く
+    # 各連結部分の重心点から円を描く
+    diameter = 256 / 8 * 0.8
     for label in range(1, num_labels_discs):  # ラベル0は背景なのでスキップ
         # 各連結部分のマスクを作成
         region_mask = (labels_discs == label).astype(np.uint8)
@@ -185,8 +186,20 @@ def recognize_board(transformed):
         else:
             continue
 
-        # 半径256/18の円を描画
-        cv2.circle(transformed, (cx, cy), 256 // 18, (0, 0, 255), 2)
+        
+        # 円の中のピクセルを抽出するためのマスクを作成
+        circle_mask = np.zeros_like(binary_transformed, dtype=np.uint8)
+        cv2.circle(circle_mask, (cx, cy), int(diameter / 2), 255, -1)
+        # マスクを適用して円内のピクセルを抽出
+        circle_pixels = cv2.bitwise_and(binary_transformed, binary_transformed, mask=circle_mask)
+        # 白と黒のピクセル数を数える
+        white_pixels = cv2.countNonZero(circle_pixels)
+        black_pixels = np.sum(circle_mask // 255) - white_pixels
+        print(f"Label {label}: White pixels = {white_pixels}, Black pixels = {black_pixels}")
+        if black_pixels > white_pixels * 0.4:
+            cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 0), 2)
+        else:
+            cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 255, 255), 2)
 
     # デバッグ用に円を描画した画像を表示
     cv2.imshow('Circles on Transformed', transformed)

@@ -143,6 +143,29 @@ def recognize_board(transformed):
     # デバッグ用に円を描画した画像を表示
     if DEBUG_IMSHOW:
         cv2.imshow('Circles on Transformed', transformed)
+    
+
+    # オセロの盤面画像を作成
+    board_image = np.zeros((BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE, 3), dtype=np.uint8)
+    # 背景を緑に設定
+    board_image[:] = (0, 128, 0)
+    cell_size = BOARD_IMAGE_SIZE // HW
+    # グリッド線を描画
+    for i in range(1, HW):
+        cv2.line(board_image, (0, i * cell_size), (BOARD_IMAGE_SIZE, i * cell_size), (0, 0, 0), 1)
+        cv2.line(board_image, (i * cell_size, 0), (i * cell_size, BOARD_IMAGE_SIZE), (0, 0, 0), 1)
+    # 石を描画
+    for y in range(HW):
+        for x in range(HW):
+            center = (x * cell_size + cell_size // 2, y * cell_size + cell_size // 2)
+            radius = cell_size // 3
+            if board_arr[y][x] == BLACK:
+                cv2.circle(board_image, center, radius, (0, 0, 0), -1)
+            elif board_arr[y][x] == WHITE:
+                cv2.circle(board_image, center, radius, (255, 255, 255), -1)
+    # 盤面画像を表示
+    if DEBUG_IMSHOW:
+        cv2.imshow('Othello Board', board_image)
 
     #print(board_arr)
     return board_arr
@@ -242,12 +265,12 @@ def get_board():
     max_n_discs = -1
     best_board = None
     for board in board_arrs:
-        zeros_ones_count = sum(row.count(0) + row.count(1) for row in board)
+        zeros_ones_count = sum(row.count(BLACK) + row.count(WHITE) for row in board)
         if zeros_ones_count > max_n_discs:
             max_n_discs = zeros_ones_count
             best_board = board
     
-
+    '''
     # オセロの盤面画像を作成
     board_image = np.zeros((BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE, 3), dtype=np.uint8)
     # 背景を緑に設定
@@ -269,6 +292,7 @@ def get_board():
     # 盤面画像を表示
     if DEBUG_IMSHOW:
         cv2.imshow('Othello Board', board_image)
+    '''
 
     return best_board
     

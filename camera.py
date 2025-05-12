@@ -4,17 +4,18 @@ from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 # グローバル変数でクリックした座標を保存
 #points = []
-points = [(190, 226), (98, 365), (512, 368), (416, 226)]
+points = [(185, 226), (94, 365), (505, 368), (410, 226)]
 
+'''
 def mouse_callback(event, x, y, flags, param):
-    """マウスイベントのコールバック関数"""
     global points
     if event == cv2.EVENT_LBUTTONDOWN:  # 左クリック時
         points.append((x, y))
         print(f"Point {len(points)}: {x}, {y}")
         if len(points) == 4:
             print("4つの点を取得しました:", points)
-
+'''
+            
 def analyze_cell_colors_and_display(warped, divisions):
     """セル内のピクセルを黒、白、緑に分類し、割合を計算し、グリッドに表示"""
     step = warped.shape[0] // divisions
@@ -99,6 +100,99 @@ def draw_grid_and_analyze(frame, points):
         #frame[:] = cv2.addWeighted(frame, 1, grid_overlay, 0.2, 0)
     return None
 
+def recognize_board(transformed):
+    # 画像をHSVに変換
+    hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
+
+    # 緑を抽出 参考: https://qiita.com/tanaka-a/items/fe6b95ae922b684021cc
+    hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
+    lower = np.array([45,50,30])
+    upper = np.array([90,255,255])
+    green1 = cv2.inRange(hsv,lower,upper)
+
+    lower = np.array([45,64,89])
+    upper = np.array([90,255,255])
+    green2 = cv2.inRange(hsv,lower,upper)
+
+    color_mask = cv2.bitwise_or(green1,green2)
+
+    cv2.imshow('color_mask', color_mask)
+
+    # マスクを反転
+    disc_mask = cv2.bitwise_not(color_mask)
+
+    # マスクを適用して抽出
+    result = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
+
+    # デバッグ用にマスクと結果を表示
+    cv2.imshow('disc_mask', disc_mask)
+    cv2.imshow('Filtered', result)
+
+    # 距離変換を適用して、mask外からの距離を計算
+    distance_transform = cv2.distanceTransform(disc_mask, cv2.DIST_L2, 5)
+
+    # 距離を正規化して0-255の範囲にスケール
+    normalized_distance = cv2.normalize(distance_transform, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+    # 距離画像を表示
+    cv2.imshow('Distance Transform', normalized_distance)
+
+    # 各連結部分の中で、距離の最大値の1/2以上のピクセルのみを計算
+    # disc_maskを連結部分ごとに分けてループ
+    num_labels, labels = cv2.connectedComponents(disc_mask)
+    filtered_distance = np.zeros_like(normalized_distance, dtype=np.uint8)
+    for label in range(1, num_labels):  # ラベル0は背景なのでスキップ
+        # 各連結部分のマスクを作成
+        region_mask = ((labels == label) * 255).astype(np.uint8)
+        n_pixcels = np.sum(region_mask) // 255
+        if n_pixcels < 256 * 256 // (HW2 * 10):
+            continue
+        print(f"Label {label}: {n_pixcels} pixels")
+
+        # 距離画像にマスクを適用して最大値を取得
+        max_distance = cv2.minMaxLoc(distance_transform, mask=region_mask)[1]
+        threshold = max_distance * 0.6
+
+        # 最大値の1/2以上のピクセルを保持
+        filtered_distance = cv2.bitwise_or(
+            filtered_distance,
+            cv2.inRange(distance_transform, threshold, max_distance) & region_mask
+        )
+    # デバッグ用にフィルタリングされた距離画像を表示
+    cv2.imshow('Filtered Distance (Max/2)', filtered_distance)
+
+    # グレースケール化
+    gray_transformed = cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY)
+    # adaptiveThresholdで2値化
+    binary_transformed = cv2.adaptiveThreshold(
+        gray_transformed, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    # デバッグ用に2値化された画像を表示
+    cv2.imshow('Binary Transformed', binary_transformed)
+
+    
+    num_labels_discs, labels_discs = cv2.connectedComponents(filtered_distance)
+    # 各連結部分の重心点から半径256/18の円を描く
+    for label in range(1, num_labels_discs):  # ラベル0は背景なのでスキップ
+        # 各連結部分のマスクを作成
+        region_mask = (labels_discs == label).astype(np.uint8)
+
+        # 重心を計算
+        moments = cv2.moments(region_mask)
+        if moments["m00"] != 0:
+            cx = int(moments["m10"] / moments["m00"])
+            cy = int(moments["m01"] / moments["m00"])
+        else:
+            continue
+
+        # 半径256/18の円を描画
+        cv2.circle(transformed, (cx, cy), 256 // 18, (0, 0, 255), 2)
+
+    # デバッグ用に円を描画した画像を表示
+    cv2.imshow('Circles on Transformed', transformed)
+
+    
+
 # Webカメラを初期化 (デフォルトのカメラはID 0)
 cap = cv2.VideoCapture(1)
 if not cap.isOpened():
@@ -125,26 +219,52 @@ def get_board():
         print('Cannot receive a frame')
         return None
 
+    # 4点で囲われた範囲を256x256の正方形画像に変換
+    square_size = 256  # 正方形のサイズ（ピクセル）
+    dst_points = np.array([
+        [0, 0],
+        [square_size - 1, 0],
+        [square_size - 1, square_size - 1],
+        [0, square_size - 1]
+    ], dtype="float32")
+    # 射影変換行列を計算
+    matrix = cv2.getPerspectiveTransform(np.array(points, dtype="float32"), dst_points)
+    # フレームに射影変換を適用
+    transformed = cv2.warpPerspective(frame, matrix, (square_size, square_size))
+
+    # 画像を左に90度回転
+    transformed = cv2.rotate(transformed, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+
+    # 変換された画像の明るさの平均値を127に調整
+    mean_val = cv2.mean(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY))[0]
+    brightness = mean_val
+    adjustment = 127 - brightness
+    transformed = cv2.convertScaleAbs(transformed, alpha=1, beta=adjustment)
+
+    # 変換された画像をぼやかす
+    transformed = cv2.blur(transformed, (3, 3))
+
+    # 変換された画像を表示（デバッグ用）
+    cv2.imshow('Transformed', transformed)
+
+    board = recognize_board(transformed)
+    board = None
+    if board is not None:
+        print("Board:", board)
+
+
     # 取得した点をフレーム上に描画
     for i, point in enumerate(points):
         cv2.circle(frame, point, 5, (0, 0, 255), -1)  # 赤い円を描画
         cv2.putText(frame, f"{i+1}", (point[0] + 10, point[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)  # 点番号を描画
 
-    # 4点で囲われた範囲の明るさの平均値を127に調整
-    mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-    cv2.fillPoly(mask, [np.array(points, dtype=np.int32)], 255)
-    mean_val = cv2.mean(frame, mask=mask)[:3]
-    brightness = np.mean(mean_val)
-    adjustment = 127 - brightness
-    frame = cv2.convertScaleAbs(frame, alpha=1, beta=adjustment)
-
-    board = draw_grid_and_analyze(frame, points)
-    if board is not None:
-        print("Board:", board)
-
     # フレームを表示
-    #cv2.imshow('Camera', frame)
+    cv2.imshow('Camera', frame)
+
+    # ウィンドウを更新
+    cv2.waitKey(1)
 
     return board
 

@@ -116,7 +116,7 @@ def recognize_board(transformed):
 
     color_mask = cv2.bitwise_or(green1,green2)
 
-    cv2.imshow('color_mask', color_mask)
+    #cv2.imshow('color_mask', color_mask)
 
     # マスクを反転
     disc_mask = cv2.bitwise_not(color_mask)
@@ -170,39 +170,89 @@ def recognize_board(transformed):
     # デバッグ用に2値化された画像を表示
     cv2.imshow('Binary Transformed', binary_transformed)
 
+
     
+    # 各連結部分の重心点から円を描き、石の色を判定する
     num_labels_discs, labels_discs = cv2.connectedComponents(filtered_distance)
-    # 各連結部分の重心点から円を描く
     diameter = 256 / 8 * 0.8
-    for label in range(1, num_labels_discs):  # ラベル0は背景なのでスキップ
-        # 各連結部分のマスクを作成
-        region_mask = (labels_discs == label).astype(np.uint8)
+    
+    board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+    for y in range(HW):
+        for x in range(HW):
+            leftupper_x = 256 / HW * x
+            leftupper_y = 256 / HW * y
+            rightbottom_x = leftupper_x + 256 / HW
+            rightbottom_y = leftupper_y + 256 / HW
 
-        # 重心を計算
-        moments = cv2.moments(region_mask)
-        if moments["m00"] != 0:
-            cx = int(moments["m10"] / moments["m00"])
-            cy = int(moments["m01"] / moments["m00"])
-        else:
-            continue
+            # 四角形の範囲を整数に変換
+            leftupper_x = int(leftupper_x)
+            leftupper_y = int(leftupper_y)
+            rightbottom_x = int(rightbottom_x)
+            rightbottom_y = int(rightbottom_y)
 
-        
-        # 円の中のピクセルを抽出するためのマスクを作成
-        circle_mask = np.zeros_like(binary_transformed, dtype=np.uint8)
-        cv2.circle(circle_mask, (cx, cy), int(diameter / 2), 255, -1)
-        # マスクを適用して円内のピクセルを抽出
-        circle_pixels = cv2.bitwise_and(binary_transformed, binary_transformed, mask=circle_mask)
-        # 白と黒のピクセル数を数える
-        white_pixels = cv2.countNonZero(circle_pixels)
-        black_pixels = np.sum(circle_mask // 255) - white_pixels
-        print(f"Label {label}: White pixels = {white_pixels}, Black pixels = {black_pixels}")
-        if black_pixels > white_pixels * 0.4:
-            cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 0), 2)
-        else:
-            cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 255, 255), 2)
+            # 四角形の中のマスクを抽出
+            region_mask = filtered_distance[leftupper_y:rightbottom_y, leftupper_x:rightbottom_x]
 
+            # マスクが存在するかを判定
+            if np.any(region_mask > 0):
+                for label in range(1, num_labels_discs):  # ラベル0は背景なのでスキップ
+                    # 各連結部分のマスクを作成
+                    region_mask = (labels_discs == label).astype(np.uint8)
+
+                    # 重心を計算
+                    moments = cv2.moments(region_mask)
+                    if moments["m00"] != 0:
+                        cx = int(moments["m10"] / moments["m00"])
+                        cy = int(moments["m01"] / moments["m00"])
+                    else:
+                        continue
+                    if leftupper_x <= cx <= rightbottom_x and leftupper_y <= cy <= rightbottom_y:
+                        # 円の中のピクセルを抽出するためのマスクを作成
+                        circle_mask = np.zeros_like(binary_transformed, dtype=np.uint8)
+                        cv2.circle(circle_mask, (cx, cy), int(diameter / 2), 255, -1)
+                        # マスクを適用して円内のピクセルを抽出
+                        circle_pixels = cv2.bitwise_and(binary_transformed, binary_transformed, mask=circle_mask)
+                        # 白と黒のピクセル数を数える
+                        white_pixels = cv2.countNonZero(circle_pixels)
+                        black_pixels = np.sum(circle_mask // 255) - white_pixels
+                        print(f"Label {label}: White pixels = {white_pixels}, Black pixels = {black_pixels}")
+                        if black_pixels > white_pixels * 0.4:
+                            board_arr[y][x] = BLACK
+                            cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 0), 2)
+                        else:
+                            board_arr[y][x] = WHITE
+                            cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 255, 255), 2)
+                        break
+            
     # デバッグ用に円を描画した画像を表示
     cv2.imshow('Circles on Transformed', transformed)
+
+
+    # オセロの盤面画像を作成
+    board_image = np.zeros((256, 256, 3), dtype=np.uint8)
+    # 背景を緑に設定
+    board_image[:] = (0, 128, 0)
+    cell_size = 256 // HW
+    # グリッド線を描画
+    for i in range(1, HW):
+        cv2.line(board_image, (0, i * cell_size), (256, i * cell_size), (0, 0, 0), 1)
+        cv2.line(board_image, (i * cell_size, 0), (i * cell_size, 256), (0, 0, 0), 1)
+    # 石を描画
+    for y in range(HW):
+        for x in range(HW):
+            center = (x * cell_size + cell_size // 2, y * cell_size + cell_size // 2)
+            radius = cell_size // 3
+            if board_arr[y][x] == BLACK:
+                cv2.circle(board_image, center, radius, (0, 0, 0), -1)
+            elif board_arr[y][x] == WHITE:
+                cv2.circle(board_image, center, radius, (255, 255, 255), -1)
+    # 盤面画像を表示
+    cv2.imshow('Othello Board', board_image)
+    
+
+
+    print(board_arr)
+    return board_arr
 
     
 
@@ -245,8 +295,9 @@ def get_board():
     # フレームに射影変換を適用
     transformed = cv2.warpPerspective(frame, matrix, (square_size, square_size))
 
-    # 画像を左に90度回転
+    # 画像の向きを変換
     transformed = cv2.rotate(transformed, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    transformed = cv2.flip(transformed, 1)
 
 
     # 変換された画像の明るさの平均値を127に調整

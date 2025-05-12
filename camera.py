@@ -22,7 +22,7 @@ def mouse_callback(event, x, y, flags, param):
             print("4つの点を取得しました:", points)
 '''
 
-def recognize_board(transformed):
+def recognize_disc_place(transformed):
     # 画像をHSVに変換
     hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
 
@@ -113,8 +113,8 @@ def recognize_board(transformed):
         if DEBUG_IMSHOW:
             cv2.imshow('Disc Center ' + ('Black' if i == BLACK else 'White'), disc_center)
 
-    diameter = BOARD_IMAGE_SIZE / 8 * 0.8
-    board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+
+    disc_places = [[], []]
     for y in range(HW):
         for x in range(HW):
             leftupper_x = BOARD_IMAGE_SIZE / HW * x
@@ -128,10 +128,7 @@ def recognize_board(transformed):
             rightbottom_x = int(rightbottom_x)
             rightbottom_y = int(rightbottom_y)
 
-            # 四角形を描画
-            cv2.rectangle(transformed, (leftupper_x, leftupper_y), (rightbottom_x, rightbottom_y), (0, 255, 0), 1)
-
-            for i in range(2):
+            for i in [WHITE, BLACK]:
                 disc_center = disc_centers[i]
 
                 # 四角形の中のdisc_centerのオンとなっているピクセルをリストで取得
@@ -140,57 +137,12 @@ def recognize_board(transformed):
                     cy, cx = on_pixels[0]
                     cy += leftupper_y
                     cx += leftupper_x
-                    if i == BLACK:
-                        board_arr[y][x] = BLACK
-                        cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 255), 2)
-                    else:
-                        board_arr[y][x] = WHITE
-                        cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 100, 50), 2)
-            
-        
-    # デバッグ用に円を描画した画像を表示
-    if DEBUG_IMSHOW:
-        cv2.imshow('Circles on Transformed', transformed)
-    
+                    disc_places[i].append([cx, cy])
+                    break
+    return disc_places
 
-    # オセロの盤面画像を作成
-    board_image = np.zeros((BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE, 3), dtype=np.uint8)
-    # 背景を緑に設定
-    board_image[:] = (0, 128, 0)
-    cell_size = BOARD_IMAGE_SIZE // HW
-    # グリッド線を描画
-    for i in range(1, HW):
-        cv2.line(board_image, (0, i * cell_size), (BOARD_IMAGE_SIZE, i * cell_size), (0, 0, 0), 1)
-        cv2.line(board_image, (i * cell_size, 0), (i * cell_size, BOARD_IMAGE_SIZE), (0, 0, 0), 1)
-    # 石を描画
-    for y in range(HW):
-        for x in range(HW):
-            center = (x * cell_size + cell_size // 2, y * cell_size + cell_size // 2)
-            radius = cell_size // 3
-            if board_arr[y][x] == BLACK:
-                cv2.circle(board_image, center, radius, (0, 0, 0), -1)
-            elif board_arr[y][x] == WHITE:
-                cv2.circle(board_image, center, radius, (255, 255, 255), -1)
-    # 盤面画像を表示
-    if DEBUG_IMSHOW:
-        cv2.imshow('Othello Board', board_image)
 
-    #print(board_arr)
-    return board_arr
-
-    
-
-# Webカメラを初期化 (デフォルトのカメラはID 0)
-cap = cv2.VideoCapture(1)
-if not cap.isOpened():
-    print('Cannot open camera')
-    exit()
-
-# ウィンドウを作成し、マウスコールバックを設定
-#cv2.namedWindow('Camera')
-#cv2.setMouseCallback('Camera', mouse_callback)
-
-def get_board_single():
+def get_transformed_board():
     # フレームを取得
     ret, frame = cap.read()
 
@@ -235,15 +187,6 @@ def get_board_single():
     # 変換された画像をぼやかす
     transformed = cv2.blur(transformed, (3, 3))
 
-    # 変換された画像を表示（デバッグ用）
-    if DEBUG_IMSHOW:
-        cv2.imshow('Transformed', transformed)
-
-    board_arr = recognize_board(transformed)
-    #if board_arr is not None:
-    #    print("Board:", board_arr)
-
-
     # 取得した点をフレーム上に描画
     for i, point in enumerate(points):
         cv2.circle(frame, point, 5, (0, 0, 255), -1)  # 赤い円を描画
@@ -253,32 +196,105 @@ def get_board_single():
     # フレームを表示
     if DEBUG_IMSHOW:
         cv2.imshow('Camera', frame)
+    
+    return transformed
+    
+
+# Webカメラを初期化 (デフォルトのカメラはID 0)
+cap = cv2.VideoCapture(1)
+if not cap.isOpened():
+    print('Cannot open camera')
+    exit()
+
+# ウィンドウを作成し、マウスコールバックを設定
+#cv2.namedWindow('Camera')
+#cv2.setMouseCallback('Camera', mouse_callback)
+
+def get_disc_places_single():
+    transformed = get_transformed_board()
+
+    # 変換された画像を表示（デバッグ用）
+    if DEBUG_IMSHOW:
+        cv2.imshow('Transformed', transformed)
+
+    disc_places = recognize_disc_place(transformed)
+    #if board_arr is not None:
+    #    print("Board:", board_arr)
 
     # ウィンドウを更新
     if DEBUG_IMSHOW:
         cv2.waitKey(1)
 
-    return board_arr
+    return disc_places
+
+
+
+
 
 def get_board():
-    counts = []
-    board_arrs = []
+    disc_places_arr = []
     for _ in range(50):
-        board_arr = get_board_single()
-        if board_arr in board_arrs:
-            counts[board_arrs.index(board_arr)] += 1
-        else:
-            board_arrs.append(board_arr)
-            counts.append(1)
-    max_n_discs = -1
-    best_board = None
-    for board in board_arrs:
-        zeros_ones_count = sum(row.count(BLACK) + row.count(WHITE) for row in board)
-        if zeros_ones_count > max_n_discs:
-            max_n_discs = zeros_ones_count
-            best_board = board
+        disc_places_arr.append(get_disc_places_single())
     
-    '''
+    centroid_coords = [[], []]
+    for color in range(2):
+        coords_arr = [disc_places_arr[i][color] for i in range(len(disc_places_arr))]
+
+        coord_cluster = [[coords_arr[0][i]] for i in range(len(coords_arr[0]))]
+
+        for coords in coords_arr[1:]:
+            for coord in coords:
+                added = False
+                for cluster in coord_cluster:
+                    if np.linalg.norm(np.array(cluster[0]) - np.array(coord)) < 10:  # 距離が10未満なら同じクラスターに追加
+                        cluster.append(coord)
+                        added = True
+                        break
+                if not added:
+                    coord_cluster.append([coord])  # 新しいクラスターを作成
+        for cluster in coord_cluster:
+            if len(cluster) > 1:
+                centroid = np.mean(cluster, axis=0).astype(int)
+                centroid_coords[color].append(centroid.tolist())
+            else:
+                centroid_coords[color].append(cluster[0])
+    
+
+    transformed = get_transformed_board()
+
+    diameter = int(BOARD_IMAGE_SIZE / 8 * 0.8)
+    board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+    for y in range(HW):
+        for x in range(HW):
+            leftupper_x = BOARD_IMAGE_SIZE / HW * x
+            leftupper_y = BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - y) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * y / (HW - 1)
+            rightbottom_x = leftupper_x + BOARD_IMAGE_SIZE / HW
+            rightbottom_y = min(BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1))
+
+            # 四角形の範囲を整数に変換
+            leftupper_x = int(leftupper_x)
+            leftupper_y = int(leftupper_y)
+            rightbottom_x = int(rightbottom_x)
+            rightbottom_y = int(rightbottom_y)
+
+            # 四角形を描画
+            cv2.rectangle(transformed, (leftupper_x, leftupper_y), (rightbottom_x, rightbottom_y), (0, 255, 0), 1)
+
+            for color in range(2):
+                for coord in centroid_coords[color]:
+                    if leftupper_x <= coord[0] < rightbottom_x and leftupper_y <= coord[1] < rightbottom_y:
+                        if color == BLACK:
+                            board_arr[y][x] = BLACK
+                            cv2.circle(transformed, (coord[0], coord[1]), diameter // 2, (0, 0, 255), 2)
+                        else:
+                            board_arr[y][x] = WHITE
+                            cv2.circle(transformed, (coord[0], coord[1]), diameter // 2, (255, 0, 0), 2)
+                        break
+
+    # 変換された画像を表示（デバッグ用）
+    if DEBUG_IMSHOW:
+        cv2.imshow('Recognized', transformed)
+
     # オセロの盤面画像を作成
     board_image = np.zeros((BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE, 3), dtype=np.uint8)
     # 背景を緑に設定
@@ -293,16 +309,23 @@ def get_board():
         for x in range(HW):
             center = (x * cell_size + cell_size // 2, y * cell_size + cell_size // 2)
             radius = cell_size // 3
-            if best_board[y][x] == BLACK:
+            if board_arr[y][x] == BLACK:
                 cv2.circle(board_image, center, radius, (0, 0, 0), -1)
-            elif best_board[y][x] == WHITE:
+            elif board_arr[y][x] == WHITE:
                 cv2.circle(board_image, center, radius, (255, 255, 255), -1)
     # 盤面画像を表示
     if DEBUG_IMSHOW:
         cv2.imshow('Othello Board', board_image)
-    '''
+    
+    # ウィンドウを更新
+    if DEBUG_IMSHOW:
+        cv2.waitKey(1)
 
-    return best_board
+    #print(board_arr)
+    return board_arr
+    
+
+        
     
 
 def cleanup_camera():

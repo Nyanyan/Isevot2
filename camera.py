@@ -3,13 +3,14 @@ import numpy as np
 from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 BOARD_IMAGE_SIZE = 256
-DISC_HEIGHT_SHIFT = 15
+DISC_HEIGHT_SHIFT_TOP = 5
+DISC_HEIGHT_SHIFT_BOTTOM = 15
 
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
 #points = []
-points = [(186, 226), (88, 372), (508, 372), (410, 226)]
+points = [(186, 227), (88, 372), (508, 372), (410, 227)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -112,9 +113,9 @@ def recognize_board(transformed):
     for y in range(HW):
         for x in range(HW):
             leftupper_x = BOARD_IMAGE_SIZE / HW * x
-            leftupper_y = BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT
+            leftupper_y = BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - y) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * y / (HW - 1)
             rightbottom_x = leftupper_x + BOARD_IMAGE_SIZE / HW
-            rightbottom_y = min(BOARD_IMAGE_SIZE, leftupper_y + BOARD_IMAGE_SIZE / HW)
+            rightbottom_y = min(BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1))
 
             # 四角形の範囲を整数に変換
             leftupper_x = int(leftupper_x)

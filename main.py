@@ -62,7 +62,9 @@ def main():
                 if need_to_put_disc:
                     serial_connection.write(b'c') # ready for camera
                     wait_finish()
-                    board_arr = get_board()
+                    board_arr = None
+                    while board_arr == None:
+                        board_arr = get_board()
                     othello = Othello(board_arr, WHITE)
                     othello.print()
                     if othello.get_legal():

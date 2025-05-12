@@ -2,6 +2,9 @@ import cv2
 import numpy as np
 from othello import BLACK, WHITE, EMPTY, HW, HW2
 
+BOARD_IMAGE_SIZE = 256
+DISC_HEIGHT_SHIFT = 5
+
 # グローバル変数でクリックした座標を保存
 #points = []
 points = [(185, 226), (94, 365), (505, 368), (410, 226)]
@@ -145,7 +148,7 @@ def recognize_board(transformed):
         # 各連結部分のマスクを作成
         region_mask = ((labels == label) * 255).astype(np.uint8)
         n_pixcels = np.sum(region_mask) // 255
-        if n_pixcels < 256 * 256 // (HW2 * 10):
+        if n_pixcels < BOARD_IMAGE_SIZE * BOARD_IMAGE_SIZE // (HW2 * 10):
             continue
         print(f"Label {label}: {n_pixcels} pixels")
 
@@ -174,15 +177,15 @@ def recognize_board(transformed):
     
     # 各連結部分の重心点から円を描き、石の色を判定する
     num_labels_discs, labels_discs = cv2.connectedComponents(filtered_distance)
-    diameter = 256 / 8 * 0.8
+    diameter = BOARD_IMAGE_SIZE / 8 * 0.8
     
     board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
     for y in range(HW):
         for x in range(HW):
-            leftupper_x = 256 / HW * x
-            leftupper_y = 256 / HW * y
-            rightbottom_x = leftupper_x + 256 / HW
-            rightbottom_y = leftupper_y + 256 / HW
+            leftupper_x = BOARD_IMAGE_SIZE / HW * x
+            leftupper_y = max(0, BOARD_IMAGE_SIZE / HW * y - DISC_HEIGHT_SHIFT)
+            rightbottom_x = leftupper_x + BOARD_IMAGE_SIZE / HW
+            rightbottom_y = leftupper_y + BOARD_IMAGE_SIZE / HW
 
             # 四角形の範囲を整数に変換
             leftupper_x = int(leftupper_x)
@@ -229,14 +232,14 @@ def recognize_board(transformed):
 
 
     # オセロの盤面画像を作成
-    board_image = np.zeros((256, 256, 3), dtype=np.uint8)
+    board_image = np.zeros((BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE, 3), dtype=np.uint8)
     # 背景を緑に設定
     board_image[:] = (0, 128, 0)
-    cell_size = 256 // HW
+    cell_size = BOARD_IMAGE_SIZE // HW
     # グリッド線を描画
     for i in range(1, HW):
-        cv2.line(board_image, (0, i * cell_size), (256, i * cell_size), (0, 0, 0), 1)
-        cv2.line(board_image, (i * cell_size, 0), (i * cell_size, 256), (0, 0, 0), 1)
+        cv2.line(board_image, (0, i * cell_size), (BOARD_IMAGE_SIZE, i * cell_size), (0, 0, 0), 1)
+        cv2.line(board_image, (i * cell_size, 0), (i * cell_size, BOARD_IMAGE_SIZE), (0, 0, 0), 1)
     # 石を描画
     for y in range(HW):
         for x in range(HW):
@@ -282,8 +285,8 @@ def get_board():
         print('Cannot receive a frame')
         return None
 
-    # 4点で囲われた範囲を256x256の正方形画像に変換
-    square_size = 256  # 正方形のサイズ（ピクセル）
+    # 4点で囲われた範囲をBOARD_IMAGE_SIZExBOARD_IMAGE_SIZEの正方形画像に変換
+    square_size = BOARD_IMAGE_SIZE  # 正方形のサイズ（ピクセル）
     dst_points = np.array([
         [0, 0],
         [square_size - 1, 0],

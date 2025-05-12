@@ -30,88 +30,82 @@ def recognize_board(transformed):
     lower = np.array([45,50,30])
     upper = np.array([90,255,255])
     green1 = cv2.inRange(hsv,lower,upper)
-
     lower = np.array([45,64,89])
     upper = np.array([90,255,255])
     green2 = cv2.inRange(hsv,lower,upper)
-
     color_mask = cv2.bitwise_or(green1,green2)
-
-    #cv2.imshow('color_mask', color_mask)
-
     # マスクを反転
     disc_mask = cv2.bitwise_not(color_mask)
-
     # マスクを適用して抽出
-    result = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
+    #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
     # デバッグ用にマスクと結果を表示
     if DEBUG_IMSHOW:
         cv2.imshow('disc_mask', disc_mask)
-        cv2.imshow('Filtered', result)
 
-    # 距離変換を適用して、mask外からの距離を計算
-    distance_transform = cv2.distanceTransform(disc_mask, cv2.DIST_L2, 5)
-
-    # 距離を正規化して0-255の範囲にスケール
-    normalized_distance = cv2.normalize(distance_transform, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
-    # 距離画像を表示
-    if DEBUG_IMSHOW:
-        cv2.imshow('Distance Transform', normalized_distance)
-
-    # 局所的な最大値を持つピクセルを抽出
-    kernel = np.ones((1 + 5 * 2, 1 + 5 * 2), np.uint8)  # 周囲5ピクセルの範囲で最大値を持つピクセルを抽出
-    local_maxima = cv2.dilate(normalized_distance, kernel) == normalized_distance
-    #local_maxima = cv2.dilate(normalized_distance, None) == normalized_distance
-    local_maxima = np.uint8(local_maxima) * 255
-    local_maxima = cv2.bitwise_and(local_maxima, disc_mask)
-    # normalized_distanceの要素が127以上のマスクを作成
-    threshold_mask = cv2.inRange(normalized_distance, 127, 255)
-    local_maxima = cv2.bitwise_and(local_maxima, threshold_mask)
-    if DEBUG_IMSHOW:
-        cv2.imshow('Local Maxima', local_maxima)
+    # transformedの明るさが200以上のピクセルを抽出
+    brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 200, 255)
+    white_mask = cv2.bitwise_and(disc_mask, brightness_mask)
+    black_mask = cv2.bitwise_and(disc_mask, cv2.bitwise_not(brightness_mask))
     
-
-    old_local_maxima = local_maxima
-
-    for _ in range(5):
-        updated_local_maxima = np.zeros_like(old_local_maxima, dtype=np.uint8)
-
-        # local_maximaのすべてのオンのピクセルについて処理を行う
-        for y, x in zip(*np.where(old_local_maxima > 0)):
-            # そのピクセルから5ピクセル以内のオンのピクセルを取得
-            mask = np.zeros_like(old_local_maxima, dtype=np.uint8)
-            cv2.circle(mask, (x, y), 5, 255, -1)
-            nearby_pixels = cv2.bitwise_and(old_local_maxima, mask)
-
-            # nearby_pixelsのオンのピクセルの重心を計算
-            coords = np.column_stack(np.where(nearby_pixels > 0))
-            if len(coords) > 0:
-                centroid = np.mean(coords, axis=0).astype(int)
-                # 重心ピクセルをupdated_local_maximaでオンにする
-                updated_local_maxima[centroid[0], centroid[1]] = 255
-        old_local_maxima = updated_local_maxima
-
     if DEBUG_IMSHOW:
-        cv2.imshow('Updated Local Maxima', updated_local_maxima)
-
-
-    # 盤面画像をグレースケール化
-    gray_transformed = cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY)
-    # adaptiveThresholdで2値化
-    binary_transformed = cv2.adaptiveThreshold(
-        gray_transformed, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
-    # デバッグ用に2値化された画像を表示
-    if DEBUG_IMSHOW:
-        cv2.imshow('Binary Transformed', binary_transformed)
-
-
+        cv2.imshow('Black Mask', black_mask)
+        cv2.imshow('White Mask', white_mask)
     
-    # 各連結部分の重心点から円を描き、石の色を判定する
+    disc_masks = [black_mask, white_mask]
+    disc_centers = []
+
+    for i in range(2):
+        mask = disc_masks[i]
+        # 距離変換を適用して、mask外からの距離を計算
+        distance_transform = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+
+        # 距離を正規化して0-255の範囲にスケール
+        normalized_distance = cv2.normalize(distance_transform, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+        # 距離画像を表示
+        if DEBUG_IMSHOW:
+            cv2.imshow('Distance ' + ('Black' if i == BLACK else 'White'), normalized_distance)
+
+        # 局所的な最大値を持つピクセルを抽出
+        kernel = np.ones((1 + 5 * 2, 1 + 5 * 2), np.uint8)  # 周囲5ピクセルの範囲で最大値を持つピクセルを抽出
+        local_maxima = cv2.dilate(normalized_distance, kernel) == normalized_distance
+        #local_maxima = cv2.dilate(normalized_distance, None) == normalized_distance
+        local_maxima = np.uint8(local_maxima) * 255
+        local_maxima = cv2.bitwise_and(local_maxima, disc_mask)
+        # normalized_distanceの要素が127以上のマスクを作成
+        threshold_mask = cv2.inRange(normalized_distance, 127, 255)
+        local_maxima = cv2.bitwise_and(local_maxima, threshold_mask)
+        if DEBUG_IMSHOW:
+            cv2.imshow('Local Maxima ' + ('Black' if i == BLACK else 'White'), local_maxima)
+        
+
+        old_local_maxima = local_maxima
+
+        for _ in range(5):
+            disc_center = np.zeros_like(old_local_maxima, dtype=np.uint8)
+
+            # local_maximaのすべてのオンのピクセルについて処理を行う
+            for y, x in zip(*np.where(old_local_maxima > 0)):
+                # そのピクセルから5ピクセル以内のオンのピクセルを取得
+                mask = np.zeros_like(old_local_maxima, dtype=np.uint8)
+                cv2.circle(mask, (x, y), 5, 255, -1)
+                nearby_pixels = cv2.bitwise_and(old_local_maxima, mask)
+
+                # nearby_pixelsのオンのピクセルの重心を計算
+                coords = np.column_stack(np.where(nearby_pixels > 0))
+                if len(coords) > 0:
+                    centroid = np.mean(coords, axis=0).astype(int)
+                    # 重心ピクセルをdisc_centerでオンにする
+                    disc_center[centroid[0], centroid[1]] = 255
+            old_local_maxima = disc_center
+        
+        disc_centers.append(disc_center)
+
+        if DEBUG_IMSHOW:
+            cv2.imshow('Disc Center ' + ('Black' if i == BLACK else 'White'), disc_center)
+
     diameter = BOARD_IMAGE_SIZE / 8 * 0.8
-    
     board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
     for y in range(HW):
         for x in range(HW):
@@ -129,27 +123,21 @@ def recognize_board(transformed):
             # 四角形を描画
             cv2.rectangle(transformed, (leftupper_x, leftupper_y), (rightbottom_x, rightbottom_y), (0, 255, 0), 1)
 
-            # 四角形の中のlocal_maximaのオンとなっているピクセルをリストで取得
-            on_pixels = np.column_stack(np.where(updated_local_maxima[leftupper_y:rightbottom_y, leftupper_x:rightbottom_x] > 0))
-            if len(on_pixels):
-                cy, cx = on_pixels[0]
-                cy += leftupper_y
-                cx += leftupper_x
-                # 円の中のピクセルを抽出するためのマスクを作成
-                circle_mask = np.zeros_like(binary_transformed, dtype=np.uint8)
-                cv2.circle(circle_mask, (cx, cy), int(diameter / 2), 255, -1)
-                # マスクを適用して円内のピクセルを抽出
-                circle_pixels = cv2.bitwise_and(binary_transformed, binary_transformed, mask=circle_mask)
-                # 白と黒のピクセル数を数える
-                white_pixels = cv2.countNonZero(circle_pixels)
-                black_pixels = np.sum(circle_mask // 255) - white_pixels
-                #print(f"Label {label}: White pixels = {white_pixels}, Black pixels = {black_pixels}")
-                if black_pixels > white_pixels * 0.3:
-                    board_arr[y][x] = BLACK
-                    cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 255), 2)
-                else:
-                    board_arr[y][x] = WHITE
-                    cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 100, 50), 2)
+            for i in range(2):
+                disc_center = disc_centers[i]
+
+                # 四角形の中のdisc_centerのオンとなっているピクセルをリストで取得
+                on_pixels = np.column_stack(np.where(disc_center[leftupper_y:rightbottom_y, leftupper_x:rightbottom_x] > 0))
+                if len(on_pixels):
+                    cy, cx = on_pixels[0]
+                    cy += leftupper_y
+                    cx += leftupper_x
+                    if i == BLACK:
+                        board_arr[y][x] = BLACK
+                        cv2.circle(transformed, (cx, cy), int(diameter / 2), (0, 0, 255), 2)
+                    else:
+                        board_arr[y][x] = WHITE
+                        cv2.circle(transformed, (cx, cy), int(diameter / 2), (255, 100, 50), 2)
             
         
     # デバッグ用に円を描画した画像を表示

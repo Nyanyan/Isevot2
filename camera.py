@@ -9,7 +9,7 @@ DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
 #points = []
-points = [(185, 224), (87, 370), (508, 375), (410, 224)]
+points = [(186, 226), (88, 372), (508, 372), (410, 226)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -46,7 +46,9 @@ def recognize_board(transformed):
     # transformedの明るさが200以上のピクセルを抽出
     brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 200, 255)
     white_mask = cv2.bitwise_and(disc_mask, brightness_mask)
-    black_mask = cv2.bitwise_and(disc_mask, cv2.bitwise_not(brightness_mask))
+    kernel = np.ones((11, 11), np.uint8)  # 5ピクセル拡大のためのカーネルサイズは (2*5+1, 2*5+1)
+    expanded_brightness_mask = cv2.dilate(brightness_mask, kernel)
+    black_mask = cv2.bitwise_and(disc_mask, cv2.bitwise_not(expanded_brightness_mask))
     
     if DEBUG_IMSHOW:
         cv2.imshow('Black Mask', black_mask)

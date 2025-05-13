@@ -3,16 +3,14 @@ import numpy as np
 from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 BOARD_IMAGE_SIZE = 256
-DISC_HEIGHT_SHIFT_TOP = 5
-DISC_HEIGHT_SHIFT_BOTTOM = 13
-
 CELL_SIZE_MM = 29.0
+DISC_HEIGHT_SHIFT_TOP = 5 #4.42 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
+DISC_HEIGHT_SHIFT_BOTTOM = 13 #5.53 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
 
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
-#points = []
-points = [(186, 220), (85, 370), (508, 371), (410, 222)]
+default_points = [(185, 235), (78, 387), (510, 389), (410, 237)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -83,8 +81,8 @@ def recognize_disc_place(transformed):
         #local_maxima = cv2.dilate(normalized_distance, None) == normalized_distance
         local_maxima = np.uint8(local_maxima) * 255
         local_maxima = cv2.bitwise_and(local_maxima, disc_mask)
-        # normalized_distanceの要素が127以上のマスクを作成
-        threshold_mask = cv2.inRange(normalized_distance, 127, 255)
+        # normalized_distanceの要素が70以上のマスクを作成
+        threshold_mask = cv2.inRange(normalized_distance, 70, 255)
         local_maxima = cv2.bitwise_and(local_maxima, threshold_mask)
         if DEBUG_IMSHOW:
             cv2.imshow('Local Maxima ' + ('Black' if i == BLACK else 'White'), local_maxima)
@@ -92,7 +90,7 @@ def recognize_disc_place(transformed):
 
         old_local_maxima = local_maxima
 
-        for _ in range(5):
+        for _ in range(3):
             disc_center = np.zeros_like(old_local_maxima, dtype=np.uint8)
 
             # local_maximaのすべてのオンのピクセルについて処理を行う
@@ -120,9 +118,9 @@ def recognize_disc_place(transformed):
     for y in range(HW):
         for x in range(HW):
             leftupper_x = BOARD_IMAGE_SIZE / HW * x
-            leftupper_y = BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - y) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * y / (HW - 1)
+            leftupper_y = round(BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - y) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * y / (HW - 1))
             rightbottom_x = leftupper_x + BOARD_IMAGE_SIZE / HW
-            rightbottom_y = min(BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1))
+            rightbottom_y = min(BOARD_IMAGE_SIZE, round(BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1)))
 
             # 四角形の範囲を整数に変換
             leftupper_x = int(leftupper_x)
@@ -143,37 +141,173 @@ def recognize_disc_place(transformed):
                     break
     return disc_places
 
+def get_points_single():
+    ret, frame = cap.read()
+    if not ret:
+        print("Cannot receive a frame")
+        return default_points
+
+    # default_pointsの外側10ピクセルの四角形を計算
+    points = np.array(default_points, dtype=np.float32)
+    expanded_points = points.copy()
+    for i, point in enumerate(points):
+        prev_point = points[i - 1]
+        next_point = points[(i + 1) % len(points)]
+        direction = np.mean([point - prev_point, point - next_point], axis=0)
+        direction = direction / np.linalg.norm(direction) * 10  # 外側10ピクセルに拡張
+        expanded_points[i] += direction
+
+    # 射影変換行列を計算
+    dst_points = np.array([
+        [0, 0],
+        [BOARD_IMAGE_SIZE - 1, 0],
+        [BOARD_IMAGE_SIZE - 1, BOARD_IMAGE_SIZE - 1],
+        [0, BOARD_IMAGE_SIZE - 1]
+    ], dtype="float32")
+    matrix = cv2.getPerspectiveTransform(expanded_points, dst_points)
+
+    # フレームに射影変換を適用
+    transformed = cv2.warpPerspective(frame, matrix, (BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE))
+
+    # エッジを検出
+    edges = cv2.Canny(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 100, 200)
+
+    # Hough変換で直線を検出
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50, minLineLength=50, maxLineGap=10)
+
+    # マスクを作成して直線成分以外を除去
+    line_mask = np.zeros_like(edges, dtype=np.uint8)
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(line_mask, (x1, y1), (x2, y2), 255, 1)
+
+    # 直線成分以外をマスク
+    #edges = cv2.bitwise_and(edges, line_mask)
+
+    # 直線を延長 (default_pointsで作られる四角形から+-20ピクセル以内に制限)
+    if lines is not None:
+        # default_pointsの外側20ピクセルの四角形を計算
+        points = np.array(default_points, dtype=np.float32)
+        expanded_points = points.copy()
+        for i, point in enumerate(points):
+            prev_point = points[i - 1]
+            next_point = points[(i + 1) % len(points)]
+            direction = np.mean([point - prev_point, point - next_point], axis=0)
+            direction = direction / np.linalg.norm(direction) * (10 if i == 0 or i == 3 else 20)  # iが0か3のときは10ピクセル拡張
+            expanded_points[i] += direction
+
+        # 四角形のマスクを作成
+        mask = np.zeros_like(edges, dtype=np.uint8)
+        cv2.fillPoly(mask, [expanded_points.astype(np.int32)], 255)
+
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            dx, dy = x2 - x1, y2 - y1
+            length = np.sqrt(dx**2 + dy**2)
+            if length > 0:
+                # 延長する長さを設定
+                extend_length = BOARD_IMAGE_SIZE
+                dx = dx / length * extend_length
+                dy = dy / length * extend_length
+                x1_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(x1 - dx)))
+                y1_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(y1 - dy)))
+                x2_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(x2 + dx)))
+                y2_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(y2 + dy)))
+
+                # 延長した直線が四角形のマスク内にある場合のみ描画
+                if mask[y1, x1] > 0 and mask[y2, x2] > 0:
+                    cv2.line(edges, (x1_ext, y1_ext), (x2_ext, y2_ext), 255, 1)
+
+    # エッジ画像からコーナーを検出
+    corners = cv2.goodFeaturesToTrack(edges, maxCorners=100, qualityLevel=0.01, minDistance=10)
+    corners = np.int0(corners)
+
+    # 検出したコーナーを表示（デバッグ用）
+    if DEBUG_IMSHOW:
+        for corner in corners:
+            x, y = corner.ravel()
+            cv2.circle(edges, (x, y), 3, (255, 0, 0), -1)  # 青い円を描画
+
+    # 検出したエッジを表示（デバッグ用）
+    if DEBUG_IMSHOW:
+        cv2.imshow('Edge+Corner', edges)
+
+    # 射影変換前に戻すための逆射影変換行列を計算
+    inverse_matrix = cv2.getPerspectiveTransform(dst_points, expanded_points)
+
+    # 検出したコーナーを射影変換前の座標に戻す
+    corners = cv2.perspectiveTransform(corners.reshape(-1, 1, 2).astype(np.float32), inverse_matrix).reshape(-1, 2)
+
+    # cornersをフレームに描画
+    for corner in corners:
+        x, y = corner.ravel()
+        cv2.circle(frame, (int(x), int(y)), 5, (255, 0, 0), -1)  # 青い円を描画
+    
+
+    # expanded_pointsをフレームに描画
+    for point in expanded_points:
+        cv2.circle(frame, tuple(point.astype(int)), 5, (0, 255, 0), -1)  # 緑の円を描画
+    # default_pointsをフレームに描画
+    for point in default_points:
+        cv2.circle(frame, tuple(point), 5, (255, 0, 255), -1)  # 紫の円を描画
+
+    # frameを表示（デバッグ用）
+    if DEBUG_IMSHOW:
+        cv2.imshow('Corner Frame', frame)
+
+    # default_pointsの4点付近で最も近いコーナーを探す（+-5ピクセルに制限）
+    adjusted_points = []
+    for i, point in enumerate(default_points):
+        nearby_corners = [corner for corner in corners if 
+                          abs(corner.ravel()[0] - point[0]) <= 5 and 
+                          abs(corner.ravel()[1] - point[1]) <= 5]
+        if nearby_corners:
+            closest_corner = min(nearby_corners, key=lambda corner: np.linalg.norm(np.array(point) - corner.ravel()))
+            adjusted_points.append(tuple([round(elem) for elem in closest_corner.ravel()]))
+        else:
+            adjusted_points.append(tuple(point))  # 制限内にコーナーがない場合は元の点を使用
+
+    return adjusted_points
 
 def get_transformed_board():
+    # 4点を取得
+    points = get_points_single()
+    '''
+    points_arr = []
+    for _ in range(5):
+        points_arr.append(get_points_single())
+    points = []
+    for i in range(4):
+        point_arr = [points_arr[j][i] for j in range(len(points_arr))]
+        #print(i, point_arr)
+        x_values = [point[0] for point in point_arr]
+        y_values = [point[1] for point in point_arr]
+        x_min, x_max = np.percentile(x_values, [10, 90])
+        y_min, y_max = np.percentile(y_values, [10, 90])
+        filtered_points = [(x, y) for x, y in point_arr if x_min <= x <= x_max and y_min <= y <= y_max]
+        centroid = np.mean(filtered_points, axis=0).astype(int)
+        points.append(tuple(centroid))
+    #'''
+
+
     # フレームを取得
     ret, frame = cap.read()
-
-    '''
-    # フレームのコントラストを上げる
-    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l = clahe.apply(l)
-    lab = cv2.merge((l, a, b))
-    frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    '''
-
     if not ret:
         print('Cannot receive a frame')
         return None
 
     # 4点で囲われた範囲をBOARD_IMAGE_SIZExBOARD_IMAGE_SIZEの正方形画像に変換
-    square_size = BOARD_IMAGE_SIZE  # 正方形のサイズ（ピクセル）
     dst_points = np.array([
         [0, 0],
-        [square_size - 1, 0],
-        [square_size - 1, square_size - 1],
-        [0, square_size - 1]
+        [BOARD_IMAGE_SIZE - 1, 0],
+        [BOARD_IMAGE_SIZE - 1, BOARD_IMAGE_SIZE - 1],
+        [0, BOARD_IMAGE_SIZE - 1]
     ], dtype="float32")
     # 射影変換行列を計算
     matrix = cv2.getPerspectiveTransform(np.array(points, dtype="float32"), dst_points)
     # フレームに射影変換を適用
-    transformed = cv2.warpPerspective(frame, matrix, (square_size, square_size))
+    transformed = cv2.warpPerspective(frame, matrix, (BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE))
 
     # 画像の向きを変換
     transformed = cv2.rotate(transformed, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -191,7 +325,8 @@ def get_transformed_board():
 
     # 取得した点をフレーム上に描画
     for i, point in enumerate(points):
-        cv2.circle(frame, point, 5, (0, 0, 255), -1)  # 赤い円を描画
+        cv2.circle(frame, default_points[i], 5, (255, 0, 0), -1)  # 青い円を描画
+        cv2.circle(frame, point, 3, (0, 0, 255), -1)  # 赤い円を描画
         cv2.putText(frame, f"{i+1}", (point[0] + 10, point[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)  # 点番号を描画
 
@@ -208,9 +343,8 @@ if not cap.isOpened():
     print('Cannot open camera')
     exit()
 
-# ウィンドウを作成し、マウスコールバックを設定
-#cv2.namedWindow('Camera')
-#cv2.setMouseCallback('Camera', mouse_callback)
+
+
 
 def get_disc_places_single():
     transformed = get_transformed_board()
@@ -235,7 +369,7 @@ def get_disc_places_single():
 
 def get_board():
     disc_places_arr = []
-    for _ in range(50):
+    for _ in range(10):
         disc_places_arr.append(get_disc_places_single())
     
     centroid_coords = [[], []]
@@ -256,9 +390,19 @@ def get_board():
                     coord_cluster.append([coord])  # 新しいクラスターを作成
         for cluster in coord_cluster:
             if len(cluster) > 0:
-                centroid = np.mean(cluster, axis=0).astype(int)
-                x, y = centroid
-                centroid_coords[color].append([x, y])
+                cluster = np.array(cluster)
+                x_values = cluster[:, 0]
+                y_values = cluster[:, 1]
+                x_min, x_max = np.percentile(x_values, [10, 90])
+                y_min, y_max = np.percentile(y_values, [10, 90])
+                filtered_cluster = cluster[
+                    (x_values >= x_min) & (x_values <= x_max) &
+                    (y_values >= y_min) & (y_values <= y_max)
+                ]
+                if len(filtered_cluster) > 1:
+                    centroid = np.mean(filtered_cluster, axis=0).astype(int)
+                    x, y = centroid
+                    centroid_coords[color].append([x, y])
     
 
     transformed = get_transformed_board()
@@ -307,6 +451,7 @@ def get_board():
     # 背景を緑に設定
     board_image[:] = (0, 128, 0)
     cell_size = BOARD_IMAGE_SIZE // HW
+    radius = round(cell_size * 0.82 / 2)
     # グリッド線を描画
     for i in range(1, HW):
         cv2.line(board_image, (0, i * cell_size), (BOARD_IMAGE_SIZE, i * cell_size), (0, 0, 0), 1)
@@ -316,7 +461,6 @@ def get_board():
         for x in range(HW):
             center_x = round(x * cell_size + cell_size // 2 - disc_slip_mm[y][x][0] / CELL_SIZE_MM * cell_size)
             center_y = round(y * cell_size + cell_size // 2 + disc_slip_mm[y][x][1] / CELL_SIZE_MM * cell_size)
-            radius = cell_size // 3
             if board_arr[y][x] == BLACK:
                 cv2.circle(board_image, (center_x, center_y), radius, (0, 0, 0), -1)
             elif board_arr[y][x] == WHITE:

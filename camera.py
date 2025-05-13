@@ -3,8 +3,10 @@ import numpy as np
 from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 BOARD_IMAGE_SIZE = 256
-DISC_HEIGHT_SHIFT_TOP = 5
-DISC_HEIGHT_SHIFT_BOTTOM = 15
+DISC_HEIGHT_SHIFT_TOP = 3
+DISC_HEIGHT_SHIFT_BOTTOM = 8
+
+CELL_SIZE_MM = 29.0
 
 DEBUG_IMSHOW = True
 
@@ -95,9 +97,9 @@ def recognize_disc_place(transformed):
 
             # local_maximaのすべてのオンのピクセルについて処理を行う
             for y, x in zip(*np.where(old_local_maxima > 0)):
-                # そのピクセルから5ピクセル以内のオンのピクセルを取得
+                # そのピクセルから10ピクセル以内のオンのピクセルを取得
                 mask = np.zeros_like(old_local_maxima, dtype=np.uint8)
-                cv2.circle(mask, (x, y), 5, 255, -1)
+                cv2.circle(mask, (x, y), 10, 255, -1)
                 nearby_pixels = cv2.bitwise_and(old_local_maxima, mask)
 
                 # nearby_pixelsのオンのピクセルの重心を計算
@@ -253,23 +255,23 @@ def get_board():
                 if not added:
                     coord_cluster.append([coord])  # 新しいクラスターを作成
         for cluster in coord_cluster:
-            if len(cluster) > 1:
+            if len(cluster) > 0:
                 centroid = np.mean(cluster, axis=0).astype(int)
-                centroid_coords[color].append(centroid.tolist())
-            else:
-                centroid_coords[color].append(cluster[0])
+                x, y = centroid
+                centroid_coords[color].append([x, y])
     
 
     transformed = get_transformed_board()
 
     diameter = int(BOARD_IMAGE_SIZE / 8 * 0.8)
     board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+    disc_slip_mm = [[[0, 0] for _ in range(HW)] for _ in range(HW)]
     for y in range(HW):
         for x in range(HW):
             leftupper_x = BOARD_IMAGE_SIZE / HW * x
             leftupper_y = BOARD_IMAGE_SIZE / HW * y + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - y) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * y / (HW - 1)
             rightbottom_x = leftupper_x + BOARD_IMAGE_SIZE / HW
-            rightbottom_y = min(BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1))
+            rightbottom_y = BOARD_IMAGE_SIZE / HW * (y + 1) + DISC_HEIGHT_SHIFT_TOP * (HW - 1 - (y + 1)) / (HW - 1) + DISC_HEIGHT_SHIFT_BOTTOM * (y + 1) / (HW - 1)
 
             # 四角形の範囲を整数に変換
             leftupper_x = int(leftupper_x)
@@ -282,13 +284,18 @@ def get_board():
 
             for color in range(2):
                 for coord in centroid_coords[color]:
-                    if leftupper_x <= coord[0] < rightbottom_x and leftupper_y <= coord[1] < rightbottom_y:
+                    disc_x, disc_y = coord
+                    if leftupper_x <= disc_x < rightbottom_x and leftupper_y <= disc_y < rightbottom_y:
+                        cx = (leftupper_x + rightbottom_x) / 2
+                        cy = (leftupper_y + rightbottom_y) / 2
+                        disc_slip_mm[y][x][0] = min(30, round((disc_x - cx) / (leftupper_x - rightbottom_x) * CELL_SIZE_MM))
+                        disc_slip_mm[y][x][1] = min(30, round(-(disc_y - cy) / (leftupper_y - rightbottom_y) * CELL_SIZE_MM))
                         if color == BLACK:
                             board_arr[y][x] = BLACK
-                            cv2.circle(transformed, (coord[0], coord[1]), diameter // 2, (0, 0, 255), 2)
+                            cv2.circle(transformed, (disc_x, disc_y), diameter // 2, (0, 0, 255), 2)
                         else:
                             board_arr[y][x] = WHITE
-                            cv2.circle(transformed, (coord[0], coord[1]), diameter // 2, (255, 0, 0), 2)
+                            cv2.circle(transformed, (disc_x, disc_y), diameter // 2, (255, 0, 0), 2)
                         break
 
     # 変換された画像を表示（デバッグ用）
@@ -321,8 +328,11 @@ def get_board():
     if DEBUG_IMSHOW:
         cv2.waitKey(1)
 
+    for arr in disc_slip_mm:
+        print(arr)
+    print('')
     #print(board_arr)
-    return board_arr
+    return board_arr, disc_slip_mm
     
 
         

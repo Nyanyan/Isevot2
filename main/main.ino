@@ -487,10 +487,12 @@ void loop() {
     if (cmd == 'p') { // put color x y
       while (Serial2.available() < 3);
       char color_char = Serial2.read();
-      char x = Serial2.read();
-      char y = Serial2.read();
+      char x_char = Serial2.read();
+      char y_char = Serial2.read();
       int color = (color_char == 'b') ? BLACK : WHITE;
-      int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+      int x = x_char - '0';
+      int y = y_char - '0';
+      int cell = HW2 - 1 - (y * HW + x);
       if (color == BLACK) {
         get_disc(RIGHT, BLACK);
       } else {
@@ -506,10 +508,12 @@ void loop() {
     } else if (cmd == 'f') { // flip color_from x y
       while (Serial2.available() < 3);
       char color_char = Serial2.read();
-      char x = Serial2.read();
-      char y = Serial2.read();
+      char x_char = Serial2.read();
+      char y_char = Serial2.read();
       int color = (color_char == 'b') ? BLACK : WHITE;
-      int cell = HW2 - 1 - ((y - '0') * HW + (x - '0'));
+      int x = x_char - '0';
+      int y = y_char - '0';
+      int cell = HW2 - 1 - (y * HW + x);
       move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
       lower_arm(RIGHT);
       hold_disc_board(RIGHT, color);
@@ -518,6 +522,27 @@ void loop() {
       move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
       lower_arm(LEFT);
       put_disc(LEFT, color ^ 1);
+      Serial2.print('0');
+    } else if (cmd == 'm') { // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
+      while (Serial2.available() < 9);
+      char color_char = Serial2.read();
+      char x_char = Serial2.read();
+      char y_char = Serial2.read();
+      int color = (color_char == 'b') ? BLACK : WHITE;
+      int x = x_char - '0';
+      int y = y_char - '0';
+      int cell = HW2 - 1 - (y * HW + x);
+      double x_sgn = Serial2.read() == '+' ? 1 : -1;
+      double diff_x_mm = Serial2.read() - '0';
+      diff_x_mm = x_sgn * (diff_x_mm * 10 + Serial2.read() - '0');
+      double y_sgn = Serial2.read() == '+' ? 1 : -1;
+      double diff_y_mm = Serial2.read() - '0';
+      diff_y_mm = y_sgn * (diff_y_mm * 10 + Serial2.read() - '0');
+      move_arm(calc_x_mm(cell) + diff_x_mm, calc_y_mm(cell) + diff_y_mm, RIGHT, KRS_SERVO_SPEED);
+      lower_arm(RIGHT);
+      hold_disc_board(RIGHT, color);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      put_disc(LEFT, color);
       Serial2.print('0');
     } else if (cmd == 'h') { // home
       set_home();

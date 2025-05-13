@@ -1,6 +1,7 @@
 import serial
 import sys
 import signal
+import math
 from othello import *
 from camera import *
 
@@ -35,6 +36,12 @@ def cleanup():
 def sig_handler(signum, frame) -> None:
     sys.exit(1)
 
+def format_digit(x):
+    res = '+' if x > 0 else '-'
+    res += str(abs(x) // 10)
+    res += str(abs(x) % 10)
+    return res
+
 def main():
     signal.signal(signal.SIGTERM, sig_handler)
     try:
@@ -63,10 +70,20 @@ def main():
                     serial_connection.write(b'c') # ready for camera
                     wait_finish()
                     board_arr = None
+                    disc_slip_mm = None
                     while board_arr == None:
-                        board_arr = get_board()
-                    othello = Othello(board_arr, WHITE)
+                        board_arr, disc_slip_mm = get_board()
+                    othello = Othello(board_arr, AI_PLAYER)
                     othello.print()
+                    for y in range(HW):
+                        for x in range(HW):
+                            slip_r = math.sqrt(disc_slip_mm[y][x][0] ** 2 + disc_slip_mm[y][x][1] ** 2)
+                            if slip_r > 6:
+                                color_str = 'b' if othello.grid[y][x] == BLACK else 'w'
+                                modify_cmd = 'm' + color_str + str(HW - 1 - x) + str(HW - 1 - y) + format_digit(disc_slip_mm[y][x][0]) + format_digit(disc_slip_mm[y][x][1])
+                                print(modify_cmd)
+                                serial_connection.write(modify_cmd.encode())
+                                wait_finish()
                     if othello.get_legal():
                         print("AI's turn")
                         selected_move_y = -1

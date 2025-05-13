@@ -3,8 +3,8 @@ import numpy as np
 from othello import BLACK, WHITE, EMPTY, HW, HW2
 
 BOARD_IMAGE_SIZE = 256
-DISC_HEIGHT_SHIFT_TOP = 3
-DISC_HEIGHT_SHIFT_BOTTOM = 8
+DISC_HEIGHT_SHIFT_TOP = 5
+DISC_HEIGHT_SHIFT_BOTTOM = 13
 
 CELL_SIZE_MM = 29.0
 
@@ -12,7 +12,7 @@ DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
 #points = []
-points = [(186, 227), (88, 372), (508, 372), (410, 227)]
+points = [(186, 220), (85, 370), (508, 371), (410, 222)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -263,7 +263,7 @@ def get_board():
 
     transformed = get_transformed_board()
 
-    diameter = int(BOARD_IMAGE_SIZE / 8 * 0.8)
+    diameter = int(BOARD_IMAGE_SIZE / 8 * 0.2)
     board_arr = [[EMPTY for _ in range(HW)] for _ in range(HW)]
     disc_slip_mm = [[[0, 0] for _ in range(HW)] for _ in range(HW)]
     for y in range(HW):
@@ -314,12 +314,13 @@ def get_board():
     # 石を描画
     for y in range(HW):
         for x in range(HW):
-            center = (x * cell_size + cell_size // 2, y * cell_size + cell_size // 2)
+            center_x = round(x * cell_size + cell_size // 2 - disc_slip_mm[y][x][0] / CELL_SIZE_MM * cell_size)
+            center_y = round(y * cell_size + cell_size // 2 + disc_slip_mm[y][x][1] / CELL_SIZE_MM * cell_size)
             radius = cell_size // 3
             if board_arr[y][x] == BLACK:
-                cv2.circle(board_image, center, radius, (0, 0, 0), -1)
+                cv2.circle(board_image, (center_x, center_y), radius, (0, 0, 0), -1)
             elif board_arr[y][x] == WHITE:
-                cv2.circle(board_image, center, radius, (255, 255, 255), -1)
+                cv2.circle(board_image, (center_x, center_y), radius, (255, 255, 255), -1)
     # 盤面画像を表示
     if DEBUG_IMSHOW:
         cv2.imshow('Othello Board', board_image)

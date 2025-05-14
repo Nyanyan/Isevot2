@@ -10,7 +10,7 @@ DISC_HEIGHT_SHIFT_BOTTOM = 13 #5.53 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
-default_points = [(185, 235), (78, 387), (510, 389), (410, 237)]
+default_points = [(185, 240), (78, 387), (510, 389), (410, 242)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -154,7 +154,7 @@ def get_points_single():
         prev_point = points[i - 1]
         next_point = points[(i + 1) % len(points)]
         direction = np.mean([point - prev_point, point - next_point], axis=0)
-        direction = direction / np.linalg.norm(direction) * 10  # 外側10ピクセルに拡張
+        direction = direction / np.linalg.norm(direction) * (5 if i == 0 or i == 3 else 10)  # iが0か3のときは5ピクセル拡張
         expanded_points[i] += direction
 
     # 射影変換行列を計算

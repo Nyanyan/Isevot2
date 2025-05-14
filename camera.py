@@ -10,7 +10,7 @@ DISC_HEIGHT_SHIFT_BOTTOM = 13 #5.53 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
-default_points = [(185, 240), (78, 387), (510, 389), (410, 242)]
+default_points = [(185, 237), (78, 387), (510, 389), (410, 240)]
 
 '''
 def mouse_callback(event, x, y, flags, param):
@@ -37,12 +37,38 @@ def recognize_disc_place(transformed):
     color_mask = cv2.bitwise_or(green1,green2)
     # マスクを反転
     disc_mask = cv2.bitwise_not(color_mask)
+
+    # デバッグ用にマスクと結果を表示
+    if DEBUG_IMSHOW:
+        cv2.imshow('disc_mask', disc_mask)
+
+    # 縦方向に細長い要素と横方向に細長い要素を削除
+    contours, _ = cv2.findContours(disc_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = max(w, h) / min(w, h) if min(w, h) > 0 else float('inf')
+        if x <= 5 or x + w >= disc_mask.shape[1] - 5:
+            if h > w and aspect_ratio > 3:  # 縦長の細長い部分のみを消す
+                cv2.drawContours(disc_mask, [contour], -1, 0, -1)
+        elif y <= 5 or y + h >= disc_mask.shape[0] - 5:
+            if w > h and aspect_ratio > 3:  # 横長の細長い部分のみを消す
+                cv2.drawContours(disc_mask, [contour], -1, 0, -1)
+    # L字のような形がdisc_mask内に存在すれば削除
+    height, width = disc_mask.shape
+    l_shapes = [
+        np.array([[0, 0], [0, 50], [10, 50], [10, 10], [50, 10], [50, 0]], dtype=np.int32),  # 左上
+        np.array([[width, 0], [width - 50, 0], [width - 50, 10], [width - 10, 10], [width - 10, 50], [width, 50]], dtype=np.int32),  # 右上
+        np.array([[0, height], [0, height - 50], [10, height - 50], [10, height - 10], [50, height - 10], [50, height]], dtype=np.int32),  # 左下
+        np.array([[width, height], [width - 50, height], [width - 50, height - 10], [width - 10, height - 10], [width - 10, height - 50], [width, height - 50]], dtype=np.int32)  # 右下
+    ]
+    for l_shape in l_shapes:
+        cv2.fillPoly(disc_mask, [l_shape], 0)
     # マスクを適用して抽出
     #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
     # デバッグ用にマスクと結果を表示
     if DEBUG_IMSHOW:
-        cv2.imshow('disc_mask', disc_mask)
+        cv2.imshow('disc_mask_updated', disc_mask)
 
     # transformedの明るさが200以上のピクセルを抽出
     brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 200, 255)
@@ -272,7 +298,8 @@ def get_points_single():
 
 def get_transformed_board():
     # 4点を取得
-    points = get_points_single()
+    #points = get_points_single()
+    points = default_points
     '''
     points_arr = []
     for _ in range(5):

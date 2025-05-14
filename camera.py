@@ -396,7 +396,7 @@ def get_disc_places_single():
 
 def get_board():
     disc_places_arr = []
-    for _ in range(10):
+    for _ in range(20):
         disc_places_arr.append(get_disc_places_single())
     
     centroid_coords = [[], []]
@@ -420,8 +420,8 @@ def get_board():
                 cluster = np.array(cluster)
                 x_values = cluster[:, 0]
                 y_values = cluster[:, 1]
-                x_min, x_max = np.percentile(x_values, [10, 90])
-                y_min, y_max = np.percentile(y_values, [10, 90])
+                x_min, x_max = np.percentile(x_values, [20, 80])
+                y_min, y_max = np.percentile(y_values, [20, 80])
                 filtered_cluster = cluster[
                     (x_values >= x_min) & (x_values <= x_max) &
                     (y_values >= y_min) & (y_values <= y_max)

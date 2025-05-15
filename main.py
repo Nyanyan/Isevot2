@@ -4,6 +4,7 @@ import signal
 import math
 from othello import *
 from camera import *
+from ai import *
 
 def start_serial_communication(port, baudrate):
     try:
@@ -31,6 +32,7 @@ def cleanup_serial():
 def cleanup():
     cleanup_camera()
     cleanup_serial()
+    cleanup_ai()
     print('bye!')
 
 def sig_handler(signum, frame) -> None:
@@ -77,7 +79,8 @@ def main():
                     othello.print()
                     for y in range(HW):
                         for x in range(HW):
-                            slip_r = math.sqrt(disc_slip_mm[y][x][0] ** 2 + disc_slip_mm[y][x][1] ** 2)
+                            slip_r = max(disc_slip_mm[y][x][0], disc_slip_mm[y][x][1])
+                            #slip_r = math.sqrt(disc_slip_mm[y][x][0] ** 2 + disc_slip_mm[y][x][1] ** 2)
                             if slip_r > 6:
                                 color_str = 'b' if othello.grid[y][x] == BLACK else 'w'
                                 modify_cmd = 'm' + color_str + str(HW - 1 - x) + str(HW - 1 - y) + format_digit(disc_slip_mm[y][x][0]) + format_digit(disc_slip_mm[y][x][1])
@@ -86,17 +89,11 @@ def main():
                                 wait_finish()
                     if othello.get_legal():
                         print("AI's turn")
-                        selected_move_y = -1
-                        selected_move_x = -1
-                        legal_moves = othello.get_legal()
-                        for y in range(HW):
-                            for x in range(HW):
-                                if legal_moves[y][x]:
-                                    selected_move_x = x
-                                    selected_move_y = y
-                                    print('selected', selected_move_x, selected_move_y)
+                        selected_move_x, selected_move_y = ai_get_best_move(othello)
+                        print('selected', selected_move_x, selected_move_y)
                     else:
                         print("No legal moves available.")
+                        continue
                     flipped = othello.get_flipped(selected_move_y, selected_move_x)
                     put_cmd = 'p' + player_str + str(HW - 1 - selected_move_x) + str(HW - 1 - selected_move_y)
                     print(put_cmd)

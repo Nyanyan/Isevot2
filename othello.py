@@ -201,3 +201,17 @@ class Othello:
         
         # 石数表示
         print('黒 X ', self.n_discs[0], '-', self.n_discs[1], ' O 白')
+    
+    def get_board_str(self):
+        board_str = ''
+        for y in range(HW):
+            for x in range(HW):
+                if self.grid[y][x] == BLACK:
+                    board_str += 'X'
+                elif self.grid[y][x] == WHITE:
+                    board_str += 'O'
+                else:
+                    board_str += '.'
+        board_str += ' '
+        board_str += 'X' if self.player == BLACK else 'O'
+        return board_str

@@ -10,7 +10,7 @@ DISC_HEIGHT_SHIFT_BOTTOM = 13 #5.53 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
-default_points = [(185, 237), (78, 389), (510, 392), (410, 240)]
+default_points = [(185, 239), (78, 389), (510, 392), (410, 242)]
 
 def recognize_disc_place(transformed):
     # 画像をHSVに変換
@@ -201,8 +201,8 @@ def get_transformed_board():
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)  # 点番号を描画
 
     # フレームを表示
-    if DEBUG_IMSHOW:
-        cv2.imshow('Camera', frame)
+    #if DEBUG_IMSHOW:
+    #    cv2.imshow('Camera', frame)
     
     return transformed
     

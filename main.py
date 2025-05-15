@@ -15,7 +15,7 @@ def start_serial_communication(port, baudrate):
         print(f"Error starting serial communication: {e}")
         return None
 
-port = "COM8"  # Replace with your serial port
+port = "COM5"  # Replace with your serial port
 baudrate = 9600  # Replace with your desired baud rate
 serial_connection = start_serial_communication(port, baudrate)
 
@@ -99,8 +99,16 @@ def main():
                     print(put_cmd)
                     serial_connection.write(put_cmd.encode())
                     wait_finish()
-                    for y in range(HW):
-                        for x in range(HW):
+                    dy = [-1, -1, -1,  0,  1,  1,  1,  0]
+                    dx = [-1,  0,  1,  1,  1,  0, -1, -1]
+                    for dr in range(8):
+                        y = selected_move_y
+                        x = selected_move_x
+                        for i in range(1, 8):
+                            y += dy[dr]
+                            x += dx[dr]
+                            if y < 0 or y >= HW or x < 0 or x >= HW:
+                                break
                             if flipped[y][x]:
                                 print('flipped', y, x)
                                 flip_cmd = 'f' + opponent_str + str(HW - 1 - x) + str(HW - 1 - y)

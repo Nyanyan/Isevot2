@@ -10,17 +10,7 @@ DISC_HEIGHT_SHIFT_BOTTOM = 13 #5.53 / (CELL_SIZE_MM * HW) * BOARD_IMAGE_SIZE
 DEBUG_IMSHOW = True
 
 # グローバル変数でクリックした座標を保存
-default_points = [(185, 237), (78, 387), (510, 389), (410, 240)]
-
-'''
-def mouse_callback(event, x, y, flags, param):
-    global points
-    if event == cv2.EVENT_LBUTTONDOWN:  # 左クリック時
-        points.append((x, y))
-        print(f"Point {len(points)}: {x}, {y}")
-        if len(points) == 4:
-            print("4つの点を取得しました:", points)
-'''
+default_points = [(185, 237), (78, 389), (510, 392), (410, 240)]
 
 def recognize_disc_place(transformed):
     # 画像をHSVに変換
@@ -42,50 +32,32 @@ def recognize_disc_place(transformed):
     if DEBUG_IMSHOW:
         cv2.imshow('disc_mask', disc_mask)
 
-    # 上下左右のうち、どちらかの隣がオンならそのピクセルもオンにする
-    kernel = np.array([[0, 1, 0],
-                       [1, 1, 1],
-                       [0, 1, 0]], dtype=np.uint8)
-    disc_mask = cv2.dilate(disc_mask, kernel)
+    # 画像の周囲5ピクセルだけのマスクを作成
+    border_mask = np.zeros_like(disc_mask, dtype=np.uint8)
+    cv2.rectangle(border_mask, (0, 0), (disc_mask.shape[1], 5), 255, -1)  # 上辺
+    cv2.rectangle(border_mask, (0, disc_mask.shape[0] - 5), (disc_mask.shape[1], disc_mask.shape[0]), 255, -1)  # 下辺
+    cv2.rectangle(border_mask, (0, 0), (5, disc_mask.shape[0]), 255, -1)  # 左辺
+    cv2.rectangle(border_mask, (disc_mask.shape[1] - 5, 0), (disc_mask.shape[1], disc_mask.shape[0]), 255, -1)  # 右辺
 
-    # 周囲5ピクセル以内にしかオンのピクセルを持たない塊を削除
+    if DEBUG_IMSHOW:
+        cv2.imshow('Border Mask', border_mask)
+
+    # 画像の周囲5ピクセル内に収まる連結部分を削除
     contours, _ = cv2.findContours(disc_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        if x <= 5 or y <= 5 or x + w >= disc_mask.shape[1] - 5 or y + h >= disc_mask.shape[0] - 5:
+        mask = np.zeros_like(disc_mask, dtype=np.uint8)
+        cv2.drawContours(mask, [contour], -1, 255, -1)
+        intersection = cv2.bitwise_and(mask, border_mask)
+        if np.array_equal(intersection, mask):
             cv2.drawContours(disc_mask, [contour], -1, 0, -1)
-
-    '''
-    # 縦方向に細長い要素と横方向に細長い要素を削除
-    contours, _ = cv2.findContours(disc_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        aspect_ratio = max(w, h) / min(w, h) if min(w, h) > 0 else float('inf')
-        if x <= 5 or x + w >= disc_mask.shape[1] - 5:
-            if h > w and aspect_ratio > 3:  # 縦長の細長い部分のみを消す
-                cv2.drawContours(disc_mask, [contour], -1, 0, -1)
-        elif y <= 5 or y + h >= disc_mask.shape[0] - 5:
-            if w > h and aspect_ratio > 3:  # 横長の細長い部分のみを消す
-                cv2.drawContours(disc_mask, [contour], -1, 0, -1)
-    '''
-                
-    # L字のような形がdisc_mask内に存在すれば削除
-    height, width = disc_mask.shape
-    l_shapes = [
-        np.array([[0, 0], [0, 50], [10, 50], [10, 10], [50, 10], [50, 0]], dtype=np.int32),  # 左上
-        np.array([[width, 0], [width - 50, 0], [width - 50, 10], [width - 10, 10], [width - 10, 50], [width, 50]], dtype=np.int32),  # 右上
-        np.array([[0, height], [0, height - 50], [10, height - 50], [10, height - 10], [50, height - 10], [50, height]], dtype=np.int32),  # 左下
-        np.array([[width, height], [width - 50, height], [width - 50, height - 10], [width - 10, height - 10], [width - 10, height - 50], [width, height - 50]], dtype=np.int32)  # 右下
-    ]
-    for l_shape in l_shapes:
-        cv2.fillPoly(disc_mask, [l_shape], 0)
-    
-    # マスクを適用して抽出
-    #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
     # デバッグ用にマスクと結果を表示
     if DEBUG_IMSHOW:
         cv2.imshow('disc_mask_updated', disc_mask)
+
+
+    # マスクを適用して抽出
+    #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
     # transformedの明るさが200以上のピクセルを抽出
     brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 200, 255)
@@ -184,155 +156,9 @@ def recognize_disc_place(transformed):
                     break
     return disc_places
 
-def get_points_single():
-    ret, frame = cap.read()
-    if not ret:
-        print("Cannot receive a frame")
-        return default_points
-
-    # default_pointsの外側10ピクセルの四角形を計算
-    points = np.array(default_points, dtype=np.float32)
-    expanded_points = points.copy()
-    for i, point in enumerate(points):
-        prev_point = points[i - 1]
-        next_point = points[(i + 1) % len(points)]
-        direction = np.mean([point - prev_point, point - next_point], axis=0)
-        direction = direction / np.linalg.norm(direction) * (5 if i == 0 or i == 3 else 10)  # iが0か3のときは5ピクセル拡張
-        expanded_points[i] += direction
-
-    # 射影変換行列を計算
-    dst_points = np.array([
-        [0, 0],
-        [BOARD_IMAGE_SIZE - 1, 0],
-        [BOARD_IMAGE_SIZE - 1, BOARD_IMAGE_SIZE - 1],
-        [0, BOARD_IMAGE_SIZE - 1]
-    ], dtype="float32")
-    matrix = cv2.getPerspectiveTransform(expanded_points, dst_points)
-
-    # フレームに射影変換を適用
-    transformed = cv2.warpPerspective(frame, matrix, (BOARD_IMAGE_SIZE, BOARD_IMAGE_SIZE))
-
-    # エッジを検出
-    edges = cv2.Canny(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 100, 200)
-
-    # Hough変換で直線を検出
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50, minLineLength=50, maxLineGap=10)
-
-    # マスクを作成して直線成分以外を除去
-    line_mask = np.zeros_like(edges, dtype=np.uint8)
-    if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            cv2.line(line_mask, (x1, y1), (x2, y2), 255, 1)
-
-    # 直線成分以外をマスク
-    #edges = cv2.bitwise_and(edges, line_mask)
-
-    # 直線を延長 (default_pointsで作られる四角形から+-20ピクセル以内に制限)
-    if lines is not None:
-        # default_pointsの外側20ピクセルの四角形を計算
-        points = np.array(default_points, dtype=np.float32)
-        expanded_points = points.copy()
-        for i, point in enumerate(points):
-            prev_point = points[i - 1]
-            next_point = points[(i + 1) % len(points)]
-            direction = np.mean([point - prev_point, point - next_point], axis=0)
-            direction = direction / np.linalg.norm(direction) * (10 if i == 0 or i == 3 else 20)  # iが0か3のときは10ピクセル拡張
-            expanded_points[i] += direction
-
-        # 四角形のマスクを作成
-        mask = np.zeros_like(edges, dtype=np.uint8)
-        cv2.fillPoly(mask, [expanded_points.astype(np.int32)], 255)
-
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
-            dx, dy = x2 - x1, y2 - y1
-            length = np.sqrt(dx**2 + dy**2)
-            if length > 0:
-                # 延長する長さを設定
-                extend_length = BOARD_IMAGE_SIZE
-                dx = dx / length * extend_length
-                dy = dy / length * extend_length
-                x1_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(x1 - dx)))
-                y1_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(y1 - dy)))
-                x2_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(x2 + dx)))
-                y2_ext = min(BOARD_IMAGE_SIZE - 1, max(0, int(y2 + dy)))
-
-                # 延長した直線が四角形のマスク内にある場合のみ描画
-                if mask[y1, x1] > 0 and mask[y2, x2] > 0:
-                    cv2.line(edges, (x1_ext, y1_ext), (x2_ext, y2_ext), 255, 1)
-
-    # エッジ画像からコーナーを検出
-    corners = cv2.goodFeaturesToTrack(edges, maxCorners=100, qualityLevel=0.01, minDistance=10)
-    corners = np.int0(corners)
-
-    # 検出したコーナーを表示（デバッグ用）
-    if DEBUG_IMSHOW:
-        for corner in corners:
-            x, y = corner.ravel()
-            cv2.circle(edges, (x, y), 3, (255, 0, 0), -1)  # 青い円を描画
-
-    # 検出したエッジを表示（デバッグ用）
-    if DEBUG_IMSHOW:
-        cv2.imshow('Edge+Corner', edges)
-
-    # 射影変換前に戻すための逆射影変換行列を計算
-    inverse_matrix = cv2.getPerspectiveTransform(dst_points, expanded_points)
-
-    # 検出したコーナーを射影変換前の座標に戻す
-    corners = cv2.perspectiveTransform(corners.reshape(-1, 1, 2).astype(np.float32), inverse_matrix).reshape(-1, 2)
-
-    # cornersをフレームに描画
-    for corner in corners:
-        x, y = corner.ravel()
-        cv2.circle(frame, (int(x), int(y)), 5, (255, 0, 0), -1)  # 青い円を描画
-    
-
-    # expanded_pointsをフレームに描画
-    for point in expanded_points:
-        cv2.circle(frame, tuple(point.astype(int)), 5, (0, 255, 0), -1)  # 緑の円を描画
-    # default_pointsをフレームに描画
-    for point in default_points:
-        cv2.circle(frame, tuple(point), 5, (255, 0, 255), -1)  # 紫の円を描画
-
-    # frameを表示（デバッグ用）
-    if DEBUG_IMSHOW:
-        cv2.imshow('Corner Frame', frame)
-
-    # default_pointsの4点付近で最も近いコーナーを探す（+-5ピクセルに制限）
-    adjusted_points = []
-    for i, point in enumerate(default_points):
-        nearby_corners = [corner for corner in corners if 
-                          abs(corner.ravel()[0] - point[0]) <= 5 and 
-                          abs(corner.ravel()[1] - point[1]) <= 5]
-        if nearby_corners:
-            closest_corner = min(nearby_corners, key=lambda corner: np.linalg.norm(np.array(point) - corner.ravel()))
-            adjusted_points.append(tuple([round(elem) for elem in closest_corner.ravel()]))
-        else:
-            adjusted_points.append(tuple(point))  # 制限内にコーナーがない場合は元の点を使用
-
-    return adjusted_points
-
 def get_transformed_board():
     # 4点を取得
-    #points = get_points_single()
     points = default_points
-    '''
-    points_arr = []
-    for _ in range(5):
-        points_arr.append(get_points_single())
-    points = []
-    for i in range(4):
-        point_arr = [points_arr[j][i] for j in range(len(points_arr))]
-        #print(i, point_arr)
-        x_values = [point[0] for point in point_arr]
-        y_values = [point[1] for point in point_arr]
-        x_min, x_max = np.percentile(x_values, [10, 90])
-        y_min, y_max = np.percentile(y_values, [10, 90])
-        filtered_points = [(x, y) for x, y in point_arr if x_min <= x <= x_max and y_min <= y <= y_max]
-        centroid = np.mean(filtered_points, axis=0).astype(int)
-        points.append(tuple(centroid))
-    #'''
 
 
     # フレームを取得
@@ -382,7 +208,7 @@ def get_transformed_board():
     
 
 # Webカメラを初期化 (デフォルトのカメラはID 0)
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 if not cap.isOpened():
     print('Cannot open camera')
     exit()

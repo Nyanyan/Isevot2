@@ -15,7 +15,8 @@ def start_serial_communication(port, baudrate):
         print(f"Error starting serial communication: {e}")
         return None
 
-port = "COM5"  # Replace with your serial port
+# port = "COM5"  # Replace with your serial port
+port = "COM8"
 baudrate = 9600  # Replace with your desired baud rate
 serial_connection = start_serial_communication(port, baudrate)
 

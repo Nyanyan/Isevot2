@@ -42,6 +42,20 @@ def recognize_disc_place(transformed):
     if DEBUG_IMSHOW:
         cv2.imshow('disc_mask', disc_mask)
 
+    # 上下左右のうち、どちらかの隣がオンならそのピクセルもオンにする
+    kernel = np.array([[0, 1, 0],
+                       [1, 1, 1],
+                       [0, 1, 0]], dtype=np.uint8)
+    disc_mask = cv2.dilate(disc_mask, kernel)
+
+    # 周囲5ピクセル以内にしかオンのピクセルを持たない塊を削除
+    contours, _ = cv2.findContours(disc_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if x <= 5 or y <= 5 or x + w >= disc_mask.shape[1] - 5 or y + h >= disc_mask.shape[0] - 5:
+            cv2.drawContours(disc_mask, [contour], -1, 0, -1)
+
+    '''
     # 縦方向に細長い要素と横方向に細長い要素を削除
     contours, _ = cv2.findContours(disc_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
@@ -53,6 +67,8 @@ def recognize_disc_place(transformed):
         elif y <= 5 or y + h >= disc_mask.shape[0] - 5:
             if w > h and aspect_ratio > 3:  # 横長の細長い部分のみを消す
                 cv2.drawContours(disc_mask, [contour], -1, 0, -1)
+    '''
+                
     # L字のような形がdisc_mask内に存在すれば削除
     height, width = disc_mask.shape
     l_shapes = [
@@ -63,6 +79,7 @@ def recognize_disc_place(transformed):
     ]
     for l_shape in l_shapes:
         cv2.fillPoly(disc_mask, [l_shape], 0)
+    
     # マスクを適用して抽出
     #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
@@ -365,7 +382,7 @@ def get_transformed_board():
     
 
 # Webカメラを初期化 (デフォルトのカメラはID 0)
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print('Cannot open camera')
     exit()

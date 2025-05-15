@@ -69,15 +69,17 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define LEN_CELL_SIZE 29.500
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
-#define HOME_RIGHT_X -112.021
-#define HOME_RIGHT_Y 75.948
+//#define HOME_RIGHT_X -112.021
+//#define HOME_RIGHT_Y 75.948
+#define HOME_RIGHT_X -121.794
+#define HOME_RIGHT_Y 77.622
 #define CAMERA_RIGHT_X -189.425
 #define CAMERA_RIGHT_Y 75.176
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
 
 // speed
-#define KRS_SERVO_SPEED 5
+#define KRS_SERVO_SPEED 6
 
 // switch
 #define SWITCH_THRESHOLD 10
@@ -238,9 +240,9 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   const double L2 = LEN_ARM_ELBOW;
   const double L12 = L1 * L1;
   const double L22 = L2 * L2;
-  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI; // elbow
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
-  double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;
+  double theta1 = acos(x_mm / r) * 180.0 / PI + theta3; // shoulder
 
   if (rl == RIGHT) {
     theta2 -= ELBOW_FINGER_DEG;
@@ -255,17 +257,27 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
   int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
-  if (step < 45) {
-    step = 45;
+  int min_n_steps = 60 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
+  if (step < min_n_steps) {
+    step = min_n_steps;
   }
   for (int i = 0; i < step; ++i) {
-    double d = (1.0 - cos(PI / step * i)) * 0.5;
-    int deg1 = round((double)theta1_start + d * diff_theta1);
-    int deg2 = round((double)theta2_start + d * diff_theta2);
+    //double d = (1.0 - cos(PI / step * i)) * 0.5;
+    // double d = 1.0 - exp(-6.0 * (double)i / (double)step);
+    double x = (double)i / (double)step;
+    double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
+    //double b = 1.8 + 2000.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW);
+    double weight = 1.0 - pow(a, 2.0);
+    int deg1 = round((double)theta1_start + weight * diff_theta1);
+    int deg2 = round((double)theta2_start + weight * diff_theta2);
     krs.setPos(KRS_ID_ROOT, deg1);
     krs.setPos(KRS_ID_ELBOW, deg2);
     delay(delay_msec);
   }
+  int deg1 = round((double)theta1_start + diff_theta1);
+  int deg2 = round((double)theta2_start + diff_theta2);
+  krs.setPos(KRS_ID_ROOT, deg1);
+  krs.setPos(KRS_ID_ELBOW, deg2);
 }
 
 void get_disc(int rl, int bw) {

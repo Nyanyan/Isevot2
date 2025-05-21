@@ -5,7 +5,7 @@
 SoftwareSerial Serial2(3, 2);
 
 // krs servo
-#define EN_PIN 7
+#define EN_PIN 4
 #define BAUDRATE 115200
 #define TIMEOUT 1000
 IcsHardSerialClass krs(&Serial, EN_PIN, BAUDRATE, TIMEOUT);

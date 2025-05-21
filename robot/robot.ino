@@ -1,6 +1,7 @@
 #include <SoftwareSerial.h>
 #include <IcsHardSerialClass.h>
 #include <Servo.h>
+#include <MsTimer2.h>
 
 SoftwareSerial Serial2(3, 2);
 
@@ -26,7 +27,11 @@ Servo hold_servo[2]; // right, left
 #define RELAY_RIGHT A1
 #define RELAY_LEFT A0
 
-#define SWITCH 8
+// clock
+#define PLAYER_BUTTON 6
+#define ROBOT_BUTTON 7
+#define PLAYER_LED 8
+#define ROBOT_LED 5
 
 #define LED 13
 
@@ -81,9 +86,24 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 // speed
 #define KRS_SERVO_SPEED 6
 
-// switch
-#define SWITCH_THRESHOLD 10
-int switch_state = 0;
+// clock
+#define CLOCK_BUTTON_THRESHOLD 10
+int player_button_state = 0;
+int robot_button_state = 0;
+#define TURN_INFO_NOT_PLAYING -1
+#define TURN_INFO_PLAYER 0
+#define TURN_INFO_ROBOT 1
+int turn_info = TURN_INFO_NOT_PLAYING;
+bool clock_led_state = false;
+
+void blink_led() {
+  clock_led_state = !clock_led_state;
+  if (turn_info == TURN_INFO_PLAYER) {
+    digitalWrite(PLAYER_LED, clock_led_state);
+  } else if (turn_info == TURN_INFO_ROBOT) {
+    digitalWrite(ROBOT_LED, clock_led_state);
+  }
+}
 
 void setup() {
   // Software Serial for PC
@@ -104,15 +124,23 @@ void setup() {
   pinMode(RELAY_RIGHT, OUTPUT);
   pinMode(RELAY_LEFT, OUTPUT);
 
-  pinMode(LED, OUTPUT);
+  // clock
+  pinMode(PLAYER_BUTTON, INPUT_PULLUP);
+  pinMode(ROBOT_BUTTON, INPUT_PULLUP);
+  pinMode(PLAYER_LED, OUTPUT);
+  pinMode(ROBOT_LED, OUTPUT);
 
-  pinMode(SWITCH, INPUT_PULLUP);
+  // debug LED
+  pinMode(LED, OUTPUT);
 
   // initialize
   servo_vertical.write(VERTICAL_DEG_UP);
   for (int i = 0; i < 2; ++i) {
     hold_servo[i].write(HOLD_DEG_OPEN[i]);
   }
+
+  MsTimer2::set(1000, blink_led);
+  MsTimer2::start();
   
   delay(1000);
   Serial2.println("Start!");
@@ -482,17 +510,30 @@ void loop() {
 
   */
 
-  if (!digitalRead(SWITCH)) {
-    if (switch_state <= SWITCH_THRESHOLD) {
-      ++switch_state;
+  if (!digitalRead(PLAYER_BUTTON)) {
+    if (player_button_state <= CLOCK_BUTTON_THRESHOLD) {
+      ++player_button_state;
     }
   } else {
-    switch_state = 0;
+    player_button_state = 0;
+  }
+  if (player_button_state == CLOCK_BUTTON_THRESHOLD) {
+    Serial2.write('p');
+    turn_info ^= 1;
   }
 
-  if (switch_state == SWITCH_THRESHOLD) {
-    Serial2.write('s');
+  /*
+  if (!digitalRead(ROBOT_BUTTON)) {
+    if (robot_button_state <= CLOCK_BUTTON_THRESHOLD) {
+      ++robot_button_state;
+    }
+  } else {
+    robot_button_state = 0;
   }
+  if (robot_button_state == CLOCK_BUTTON_THRESHOLD) {
+    Serial2.write('r');
+  }
+  */
 
   if (Serial2.available()) {
     char cmd = Serial2.read();
@@ -564,6 +605,18 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'i') { // set initial board
       set_starting_board();
+      Serial2.print('0');
+    } else if (cmd == 'g') { // start game
+      while (Serial2.available() < 1);
+      char color_char = Serial2.read(); // robot is black / white
+      if (color_char == 'b') {
+        turn_info = TURN_INFO_ROBOT;
+      } else {
+        turn_info = TURN_INFO_PLAYER;
+      }
+      Serial2.print('0');
+    } else if (cmd == 'e') { // end game
+      turn_info = TURN_INFO_NOT_PLAYING;
       Serial2.print('0');
     }
   }

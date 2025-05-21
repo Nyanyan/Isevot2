@@ -144,7 +144,7 @@ void setup() {
     hold_servo[i].write(HOLD_DEG_OPEN[i]);
   }
 
-  MsTimer2::set(1000, blink_led);
+  MsTimer2::set(500, blink_led);
   MsTimer2::start();
   
   delay(1000);

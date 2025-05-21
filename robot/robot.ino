@@ -552,16 +552,16 @@ void loop() {
       int y = y_char - '0';
       int cell = HW2 - 1 - (y * HW + x);
       if (color == BLACK) {
-        get_disc(RIGHT, BLACK);
-      } else {
         get_disc(LEFT, BLACK);
+      } else {
+        get_disc(RIGHT, BLACK);
       }
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
       if (color == WHITE) {
-        flip_disc(LEFT, BLACK);
+        flip_disc(RIGHT, BLACK);
       }
-      lower_arm(RIGHT);
-      put_disc(RIGHT, color);
+      lower_arm(LEFT);
+      put_disc(LEFT, color);
       Serial2.print('0');
     } else if (cmd == 'f') { // flip color_from x y
       while (Serial2.available() < 3);

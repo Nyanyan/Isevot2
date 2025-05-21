@@ -100,8 +100,13 @@ void blink_led() {
   clock_led_state = !clock_led_state;
   if (turn_info == TURN_INFO_PLAYER) {
     digitalWrite(PLAYER_LED, clock_led_state);
+    digitalWrite(ROBOT_LED, LOW);
   } else if (turn_info == TURN_INFO_ROBOT) {
+    digitalWrite(PLAYER_LED, LOW);
     digitalWrite(ROBOT_LED, clock_led_state);
+  } else {
+    digitalWrite(PLAYER_LED, LOW);
+    digitalWrite(ROBOT_LED, LOW);
   }
 }
 
@@ -617,6 +622,9 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'e') { // end game
       turn_info = TURN_INFO_NOT_PLAYING;
+      Serial2.print('0');
+    } else if (cmd == 't') { // change turn
+      turn_info ^= 1;
       Serial2.print('0');
     }
   }

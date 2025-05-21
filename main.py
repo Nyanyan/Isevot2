@@ -15,7 +15,7 @@ def start_serial_communication(port, baudrate):
         print(f"Error starting serial communication: {e}")
         return None
 
-# port = "COM5"  # Replace with your serial port
+#port = "COM5"  # Replace with your serial port
 port = "COM8"
 baudrate = 9600  # Replace with your desired baud rate
 serial_connection = start_serial_communication(port, baudrate)
@@ -55,8 +55,13 @@ def main():
 
         AI_PLAYER = WHITE
 
-        player_str = 'b' if AI_PLAYER == BLACK else 'w'
-        opponent_str = 'w' if AI_PLAYER == BLACK else 'b'
+        robot_player_str = 'b' if AI_PLAYER == BLACK else 'w'
+        human_player_str = 'w' if AI_PLAYER == BLACK else 'b'
+
+        start_game_cmd = 'g' + robot_player_str
+        print(start_game_cmd)
+        serial_connection.write(start_game_cmd.encode())
+        wait_finish()
 
         while True:
             if serial_connection:
@@ -65,8 +70,8 @@ def main():
                 need_to_put_disc = False
                 while not need_to_put_disc:
                     received = serial_connection.read(1)  # Read one byte
-                    if received == b's':
-                        print("Received: 's'")
+                    if received == b'p':
+                        print("Received: 'p'")
                         need_to_put_disc = True
                 
                 if need_to_put_disc:
@@ -96,7 +101,7 @@ def main():
                         print("No legal moves available.")
                         continue
                     flipped = othello.get_flipped(selected_move_y, selected_move_x)
-                    put_cmd = 'p' + player_str + str(HW - 1 - selected_move_x) + str(HW - 1 - selected_move_y)
+                    put_cmd = 'p' + robot_player_str + str(HW - 1 - selected_move_x) + str(HW - 1 - selected_move_y)
                     print(put_cmd)
                     serial_connection.write(put_cmd.encode())
                     wait_finish()
@@ -112,11 +117,13 @@ def main():
                                 break
                             if flipped[y][x]:
                                 print('flipped', y, x)
-                                flip_cmd = 'f' + opponent_str + str(HW - 1 - x) + str(HW - 1 - y)
+                                flip_cmd = 'f' + human_player_str + str(HW - 1 - x) + str(HW - 1 - y)
                                 print(flip_cmd)
                                 serial_connection.write(flip_cmd.encode())
                                 wait_finish()
                     serial_connection.write('h'.encode())
+                    wait_finish()
+                    serial_connection.write('t'.encode())
                     wait_finish()
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)

@@ -572,14 +572,14 @@ void loop() {
       int x = x_char - '0';
       int y = y_char - '0';
       int cell = HW2 - 1 - (y * HW + x);
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-      lower_arm(RIGHT);
-      hold_disc_board(RIGHT, color);
-      raise_arm();
-      flip_disc(RIGHT, color);
       move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
       lower_arm(LEFT);
-      put_disc(LEFT, color ^ 1);
+      hold_disc_board(LEFT, color);
+      raise_arm();
+      flip_disc(LEFT, color);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      lower_arm(RIGHT);
+      put_disc(RIGHT, color ^ 1);
       Serial2.print('0');
     } else if (cmd == 'm') { // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
       while (Serial2.available() < 9);

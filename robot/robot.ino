@@ -28,10 +28,10 @@ Servo hold_servo[2]; // right, left
 #define RELAY_LEFT A0
 
 // clock
-#define PLAYER_BUTTON 6
-#define ROBOT_BUTTON 7
-#define PLAYER_LED 8
-#define ROBOT_LED 5
+#define PLAYER_BUTTON 8
+#define ROBOT_BUTTON 5
+#define PLAYER_LED 6
+#define ROBOT_LED 7
 
 #define LED 13
 

@@ -1,7 +1,7 @@
 import serial
 import sys
 import signal
-import math
+import time
 from othello import *
 from camera import *
 from ai import *
@@ -68,11 +68,14 @@ def main():
                 # Send 'c' to the serial port
                 # Check if 's' is received before sending 'c'
                 need_to_put_disc = False
-                while not need_to_put_disc:
-                    received = serial_connection.read(1)  # Read one byte
-                    if received == b'p':
-                        print("Received: 'p'")
-                        need_to_put_disc = True
+                serial_connection.write('b'.encode())
+                received = serial_connection.read(1)  # Read one byte
+                if received == b'1':
+                    print("robot's turn")
+                    need_to_put_disc = True
+                    serial_connection.write('sr'.encode())
+                    wait_finish()
+
                 
                 if need_to_put_disc:
                     serial_connection.write(b'c') # ready for camera
@@ -123,8 +126,9 @@ def main():
                                 wait_finish()
                     serial_connection.write('h'.encode())
                     wait_finish()
-                    serial_connection.write('t'.encode())
+                    serial_connection.write('sh'.encode())
                     wait_finish()
+            time.sleep(0.5)
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)

@@ -74,22 +74,44 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define LEN_CELL_SIZE 29.500
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
+#define DISC_SUPPLY_MODE 0
 //#define HOME_RIGHT_X -112.021
 //#define HOME_RIGHT_Y 75.948
 #define HOME_RIGHT_X -121.794
 #define HOME_RIGHT_Y 77.622
+#define HOME_RIGHT_MODE 0
 #define CAMERA_RIGHT_X -189.425
 #define CAMERA_RIGHT_Y 75.176
+#define CAMERA_RIGHT_MODE 0
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
+#define NOPOS_MODE 0
+
+const int arm_mode[HW2] = {
+  /*
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1, 
+  0, 0, 0, 0, 0, 0, 0, 1
+  */
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0
+};
 
 // speed
 #define KRS_SERVO_SPEED 6
 
 // clock
-#define CLOCK_BUTTON_THRESHOLD 10
-int player_button_state = 0;
-int robot_button_state = 0;
 #define TURN_INFO_NOT_PLAYING -1
 #define TURN_INFO_PLAYER 0
 #define TURN_INFO_ROBOT 1
@@ -266,7 +288,7 @@ double convert_from_krs_diff(double krs_deg) { // from neutral
   return (krs_deg - 7500) * 270.0 / 8000.0;
 }
 
-void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
+void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   double r2 = x_mm * x_mm + y_mm * y_mm;
   double r = sqrt(r2);
   const double L1 = LEN_ARM_ROOT;
@@ -275,16 +297,26 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec) {
   const double L22 = L2 * L2;
   double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI; // elbow
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
-  double theta1 = acos(x_mm / r) * 180.0 / PI + theta3; // shoulder
-
-  if (rl == RIGHT) {
-    theta2 -= ELBOW_FINGER_DEG;
+  int theta1_converted, theta2_converted;
+  if (mode == 0) {
+    double theta1 = acos(x_mm / r) * 180.0 / PI + theta3; // shoulder
+    if (rl == RIGHT) {
+      theta2 -= ELBOW_FINGER_DEG;
+    } else {
+      theta2 += ELBOW_FINGER_DEG;
+    }
+    theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+    theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
   } else {
-    theta2 += ELBOW_FINGER_DEG;
+    double theta1 = acos(-x_mm / r) * 180.0 / PI + theta3; // shoulder
+    if (rl == RIGHT) {
+      theta2 += ELBOW_FINGER_DEG;
+    } else {
+      theta2 -= ELBOW_FINGER_DEG;
+    }
+    theta1_converted = convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+    theta2_converted = -convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
   }
-  int theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
-  int theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
-
   int theta1_start = krs.getPos(KRS_ID_ROOT);
   int theta2_start = krs.getPos(KRS_ID_ELBOW);
   int diff_theta1 = theta1_converted - theta1_start;
@@ -337,14 +369,14 @@ void get_disc(int rl, int bw) {
   if (bw == WHITE) {
     rl_get ^= 1;
   }
-  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl_get, KRS_SERVO_SPEED);
+  move_arm(DISC_SUPPLY_X, DISC_SUPPLY_Y, rl_get, KRS_SERVO_SPEED, DISC_SUPPLY_MODE);
   servo_vertical.write(VERTICAL_DEG_SUPPLY);
   delay(100);
   hold_disc_supply(rl_get);
   servo_vertical.write(VERTICAL_DEG_UP);
   delay(100);
   if (bw == WHITE) {
-    move_arm(NOPOS_X, NOPOS_Y, rl_get, KRS_SERVO_SPEED);
+    move_arm(NOPOS_X, NOPOS_Y, rl_get, KRS_SERVO_SPEED, NOPOS_MODE);
     flip_disc(rl_get, BLACK);
   }
 }
@@ -392,11 +424,11 @@ void set_starting_board() {
     get_disc(RIGHT, BLACK);
     for (int j = i; j < i + 2; ++j) {
       if (colors[j] == BLACK) {
-        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), RIGHT, KRS_SERVO_SPEED);
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), RIGHT, KRS_SERVO_SPEED, arm_mode[cells[j]]);
         lower_arm(RIGHT);
         put_disc(RIGHT, BLACK);
       } else {
-        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), LEFT, KRS_SERVO_SPEED);
+        move_arm(calc_x_mm(cells[j]), calc_y_mm(cells[j]), LEFT, KRS_SERVO_SPEED, arm_mode[cells[j]]);
         lower_arm(LEFT);
         put_disc(LEFT, WHITE);
       }
@@ -405,141 +437,21 @@ void set_starting_board() {
 }
 
 void set_home() {
-  move_arm(HOME_RIGHT_X, HOME_RIGHT_Y, RIGHT, KRS_SERVO_SPEED);
+  move_arm(HOME_RIGHT_X, HOME_RIGHT_Y, RIGHT, KRS_SERVO_SPEED, HOME_RIGHT_MODE);
 }
 
 void set_camera() {
-  move_arm(CAMERA_RIGHT_X, CAMERA_RIGHT_Y, RIGHT, KRS_SERVO_SPEED);
+  move_arm(CAMERA_RIGHT_X, CAMERA_RIGHT_Y, RIGHT, KRS_SERVO_SPEED, CAMERA_RIGHT_MODE);
 }
 
 
 void loop() {
-  /*
-  for (int cell = 0; cell < HW2; ++cell) {
-    delay(1000);
-    double x = calc_x_mm(cell);
-    double y = calc_y_mm(cell);
-    move_arm(x, y, RIGHT, 10);
-  }
-  */
-  //for (;;);
-  /*
-  servo_vertical.write(VERTICAL_DEG_UP);
-  delay(1000);
-  servo_vertical.write(VERTICAL_DEG_BOARD);
-  delay(2000);
-  */
-  /*
-  hold_servo[RIGHT].write(HOLD_DEG_CLOSE[RIGHT]);
-  hold_servo[LEFT].write(HOLD_DEG_CLOSE[LEFT]);
-  delay(1000);
-  hold_servo[RIGHT].write(HOLD_DEG_OPEN[RIGHT]);
-  hold_servo[LEFT].write(HOLD_DEG_OPEN[LEFT]);
-  delay(2000);
-  */
-  
-  /*
-  int cell = 36;
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-  lower_arm(RIGHT);
-  hold_disc_board(RIGHT, WHITE);
-  raise_arm();
-  flip_disc(RIGHT, WHITE);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
-  lower_arm(LEFT);
-  put_disc(LEFT, BLACK);
-  delay(1000);
-  
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-  lower_arm(RIGHT);
-  hold_disc_board(RIGHT, BLACK);
-  raise_arm();
-  flip_disc(RIGHT, BLACK);
-  move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
-  lower_arm(LEFT);
-  put_disc(LEFT, WHITE);
-  delay(1000);
-  */
-
-
-  /*
-  set_home();
-  set_starting_board();
-  set_home();
-
-  {
-    int cell = 37;
-    get_disc(RIGHT, BLACK);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-    lower_arm(RIGHT);
-    put_disc(RIGHT, BLACK);
-  }
-  
-  {
-    int cell = 36;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-    lower_arm(RIGHT);
-    hold_disc_board(RIGHT, WHITE);
-    raise_arm();
-    flip_disc(RIGHT, WHITE);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
-    lower_arm(LEFT);
-    put_disc(LEFT, BLACK);
-  }
-
-  set_home();
-
-  {
-    int cell = 43;
-    get_disc(RIGHT, WHITE);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-    lower_arm(RIGHT);
-    put_disc(RIGHT, WHITE);
-  }
-  
-  {
-    int cell = 35;
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
-    lower_arm(RIGHT);
-    hold_disc_board(RIGHT, BLACK);
-    raise_arm();
-    flip_disc(RIGHT, BLACK);
-    move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
-    lower_arm(LEFT);
-    put_disc(LEFT, WHITE);
-  }
-
-  set_home();
-  
-  for (;;);
-
-  */
-
-  if (!digitalRead(PLAYER_BUTTON)) {
-    if (player_button_state <= CLOCK_BUTTON_THRESHOLD) {
-      ++player_button_state;
+  bool player_button_pressed = false;
+  while (!Serial2.available()) {
+    if (!digitalRead(PLAYER_BUTTON)) {
+      player_button_pressed = true;
     }
-  } else {
-    player_button_state = 0;
   }
-  if (player_button_state == CLOCK_BUTTON_THRESHOLD) {
-    Serial2.write('p');
-    turn_info ^= 1;
-  }
-
-  /*
-  if (!digitalRead(ROBOT_BUTTON)) {
-    if (robot_button_state <= CLOCK_BUTTON_THRESHOLD) {
-      ++robot_button_state;
-    }
-  } else {
-    robot_button_state = 0;
-  }
-  if (robot_button_state == CLOCK_BUTTON_THRESHOLD) {
-    Serial2.write('r');
-  }
-  */
-
   if (Serial2.available()) {
     char cmd = Serial2.read();
     if (cmd == 'p') { // put color x y
@@ -556,7 +468,7 @@ void loop() {
       } else {
         get_disc(RIGHT, BLACK);
       }
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED, arm_mode[cell]);
       if (color == WHITE) {
         flip_disc(RIGHT, BLACK);
       }
@@ -572,12 +484,12 @@ void loop() {
       int x = x_char - '0';
       int y = y_char - '0';
       int cell = HW2 - 1 - (y * HW + x);
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED, arm_mode[cell]);
       lower_arm(LEFT);
       hold_disc_board(LEFT, color);
       raise_arm();
       flip_disc(LEFT, color);
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED, arm_mode[cell]);
       lower_arm(RIGHT);
       put_disc(RIGHT, color ^ 1);
       Serial2.print('0');
@@ -596,10 +508,10 @@ void loop() {
       double y_sgn = Serial2.read() == '+' ? 1 : -1;
       double diff_y_mm = Serial2.read() - '0';
       diff_y_mm = y_sgn * (diff_y_mm * 10 + Serial2.read() - '0');
-      move_arm(calc_x_mm(cell) + diff_x_mm, calc_y_mm(cell) + diff_y_mm, RIGHT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell) + diff_x_mm, calc_y_mm(cell) + diff_y_mm, RIGHT, KRS_SERVO_SPEED, arm_mode[cell]);
       lower_arm(RIGHT);
       hold_disc_board(RIGHT, color);
-      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED);
+      move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED, arm_mode[cell]);
       put_disc(LEFT, color);
       Serial2.print('0');
     } else if (cmd == 'h') { // home
@@ -625,6 +537,21 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 't') { // change turn
       turn_info ^= 1;
+      Serial2.print('0');
+    } else if (cmd == 'b') { // check player's clock button
+      if (player_button_pressed) {
+        Serial2.write('1');
+      } else {
+        Serial2.write('0');
+      }
+    } else if (cmd == 's') { // set turn
+      while (Serial2.available() < 1);
+      char player_char = Serial2.read(); // robot / human
+      if (player_char == 'r') {
+        turn_info = TURN_INFO_ROBOT;
+      } else if (player_char == 'h') {
+        turn_info = TURN_INFO_PLAYER;
+      }
       Serial2.print('0');
     }
   }

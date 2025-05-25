@@ -16,15 +16,15 @@ def recognize_disc_place(transformed):
     # 画像をHSVに変換
     hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
 
-    # 緑を抽出 参考: https://qiita.com/tanaka-a/items/fe6b95ae922b684021cc
+    # 緑を抽出（明るさ120以上） 参考: https://qiita.com/tanaka-a/items/fe6b95ae922b684021cc
     hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
-    lower = np.array([45,50,30])
-    upper = np.array([90,255,255])
-    green1 = cv2.inRange(hsv,lower,upper)
-    lower = np.array([45,64,89])
-    upper = np.array([90,255,255])
-    green2 = cv2.inRange(hsv,lower,upper)
-    color_mask = cv2.bitwise_or(green1,green2)
+    lower = np.array([45, 50, 120])
+    upper = np.array([90, 255, 255])
+    green1 = cv2.inRange(hsv, lower, upper)
+    lower = np.array([45, 64, 120])
+    upper = np.array([90, 255, 255])
+    green2 = cv2.inRange(hsv, lower, upper)
+    color_mask = cv2.bitwise_or(green1, green2)
     # マスクを反転
     disc_mask = cv2.bitwise_not(color_mask)
 
@@ -184,11 +184,17 @@ def get_transformed_board():
     transformed = cv2.flip(transformed, 1)
 
 
-    # 変換された画像の明るさの平均値を127に調整
-    mean_val = cv2.mean(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY))[0]
-    brightness = mean_val
-    adjustment = 127 - brightness
-    transformed = cv2.convertScaleAbs(transformed, alpha=1, beta=adjustment)
+    # 画像の緑成分（HSVのH:45-90, S:50-, V:30-）の明るさの平均値を180に調整
+    hsv = cv2.cvtColor(transformed, cv2.COLOR_BGR2HSV)
+    lower = np.array([45, 50, 30])
+    upper = np.array([90, 255, 255])
+    green_mask = cv2.inRange(hsv, lower, upper)
+    v_channel = hsv[:, :, 2]
+    green_v = v_channel[green_mask > 0]
+    if len(green_v) > 0:
+        mean_green_v = np.mean(green_v)
+        adjustment = 180 - mean_green_v
+        transformed = cv2.convertScaleAbs(transformed, alpha=1, beta=adjustment)
 
     # 変換された画像をぼやかす
     transformed = cv2.blur(transformed, (3, 3))

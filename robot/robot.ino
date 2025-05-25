@@ -523,7 +523,7 @@ void loop() {
     } else if (cmd == 'i') { // set initial board
       set_starting_board();
       Serial2.print('0');
-    } else if (cmd == 'g') { // start game
+    } else if (cmd == 'g') { // start game [color]
       while (Serial2.available() < 1);
       char color_char = Serial2.read(); // robot is black / white
       if (color_char == 'b') {
@@ -534,9 +534,6 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'e') { // end game
       turn_info = TURN_INFO_NOT_PLAYING;
-      Serial2.print('0');
-    } else if (cmd == 't') { // change turn
-      turn_info ^= 1;
       Serial2.print('0');
     } else if (cmd == 'b') { // check player's clock button
       if (player_button_pressed) {
@@ -553,6 +550,31 @@ void loop() {
         turn_info = TURN_INFO_PLAYER;
       }
       Serial2.print('0');
-    }
+    } else if (cmd == '')
   }
 }
+
+/*
+available commands:
+  p: put a disc
+    p[color][x][y]
+    example: pb45
+  f: flip a disc
+    f[color_from][x][y]
+    example: fw67
+  m: modify a slipped disc
+    m[color][x][y][diff_x_mm(+/-00)][diff_y_mm(+/-00)]
+    example: mb45+05-10
+  h: set arm to home position
+  c: set arm to camera position
+  i: set initial board
+  g: start game
+    g[color_robot]
+    example: gw
+  e: finish game
+  b: check player's clock button
+    returns '1' if player pushed the button, '0' otherwise
+  s: set turn
+    s[robot or human]
+    example: sr (robot) / sh (human)
+*/

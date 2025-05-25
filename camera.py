@@ -59,8 +59,8 @@ def recognize_disc_place(transformed):
     # マスクを適用して抽出
     #discs = cv2.bitwise_and(transformed, transformed, mask=disc_mask)
 
-    # transformedの明るさが200以上のピクセルを抽出
-    brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 200, 255)
+    # transformedの明るさが190以上のピクセルを抽出
+    brightness_mask = cv2.inRange(cv2.cvtColor(transformed, cv2.COLOR_BGR2GRAY), 190, 255)
     white_mask = cv2.bitwise_and(disc_mask, brightness_mask)
     kernel = np.ones((11, 11), np.uint8)  # 5ピクセル拡大のためのカーネルサイズは (2*5+1, 2*5+1)
     expanded_brightness_mask = cv2.dilate(brightness_mask, kernel)

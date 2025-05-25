@@ -80,7 +80,7 @@ def main():
                 need_to_put_disc = False
                 serial_connection.write('b'.encode())
                 received = serial_connection.read(1)  # Read one byte
-                if received == b'1':
+                if received == b'y':
                     print("robot's turn")
                     need_to_put_disc = True
                     serial_connection.write('sr'.encode())
@@ -100,7 +100,7 @@ def main():
                         for x in range(HW):
                             slip_r = max(disc_slip_mm[y][x][0], disc_slip_mm[y][x][1])
                             #slip_r = math.sqrt(disc_slip_mm[y][x][0] ** 2 + disc_slip_mm[y][x][1] ** 2)
-                            if slip_r > 6:
+                            if slip_r > 8:
                                 color_str = 'b' if othello.grid[y][x] == BLACK else 'w'
                                 modify_cmd = 'm' + color_str + str(HW - 1 - x) + str(HW - 1 - y) + format_digit(disc_slip_mm[y][x][0]) + format_digit(disc_slip_mm[y][x][1])
                                 print(modify_cmd)
@@ -134,11 +134,13 @@ def main():
                                 print(flip_cmd)
                                 serial_connection.write(flip_cmd.encode())
                                 wait_finish()
-                    serial_connection.write('h'.encode())
+                    serial_connection.write('q'.encode()) # push clock
                     wait_finish()
-                    serial_connection.write('sh'.encode())
+                    serial_connection.write('sh'.encode()) # human's turn
                     wait_finish()
-            time.sleep(0.5)
+                    serial_connection.write('h'.encode()) # set arm to homw
+                    wait_finish()
+            #time.sleep(0.1)
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         signal.signal(signal.SIGINT, signal.SIG_IGN)

@@ -58,6 +58,7 @@ const int HOLD_DEG_OPEN[2] = {142, 43};
 const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 45
+#define VERTICAL_DEG_CLOCK 70
 #define VERTICAL_DEG_BOARD 176
 
 // krs servo neutral position
@@ -86,6 +87,9 @@ const int HOLD_DEG_CLOSE[2] = {40, 150};
 #define NOPOS_X 130.0
 #define NOPOS_Y 100.0
 #define NOPOS_MODE 0
+#define CLOCK_X 204.220
+#define CLOCK_Y 210.673
+#define CLOCK_MODE 0
 
 const int arm_mode[HW2] = {
   /*
@@ -537,9 +541,20 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'b') { // check player's clock button
       if (player_button_pressed) {
-        Serial2.write('1');
+        Serial2.write('y');
       } else {
-        Serial2.write('0');
+        bool pushed = false;
+        for (int i = 0; i < 3000; ++i) {
+          if (!digitalRead(PLAYER_BUTTON)) {
+            Serial2.write('y');
+            pushed = true;
+            break;
+          }
+          delay(1);
+        }
+        if (!pushed) {
+          Serial2.write('n');
+        }
       }
     } else if (cmd == 's') { // set turn
       while (Serial2.available() < 1);
@@ -556,6 +571,12 @@ void loop() {
       } else {
         Serial2.print('r');
       }
+    } else if (cmd == 'q') { // push clock
+      move_arm(CLOCK_X, CLOCK_Y, RIGHT, KRS_SERVO_SPEED, CLOCK_MODE);
+      servo_vertical.write(VERTICAL_DEG_CLOCK);
+      delay(200);
+      servo_vertical.write(VERTICAL_DEG_UP);
+      Serial2.print('0');
     }
   }
 }
@@ -579,10 +600,11 @@ available commands:
     example: gw
   e: finish game
   b: check player's clock button
-    returns '1' if player pushed the button, '0' otherwise
+    returns 'y' if player pushed the button, 'n' otherwise
   s: set turn
     s[robot or human]
     example: sr (robot) / sh (human)
   t: check toggle switch on clock
     returns 'r' if robot plays black, 'h' if human plays black
+  q: push clock
 */

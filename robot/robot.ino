@@ -29,7 +29,7 @@ Servo hold_servo[2]; // right, left
 
 // clock
 #define PLAYER_BUTTON 8
-#define ROBOT_BUTTON 5
+#define TOGGLE_SWITCH 5
 #define PLAYER_LED 6
 #define ROBOT_LED 7
 
@@ -153,7 +153,7 @@ void setup() {
 
   // clock
   pinMode(PLAYER_BUTTON, INPUT_PULLUP);
-  pinMode(ROBOT_BUTTON, INPUT_PULLUP);
+  pinMode(TOGGLE_SWITCH, INPUT_PULLUP);
   pinMode(PLAYER_LED, OUTPUT);
   pinMode(ROBOT_LED, OUTPUT);
 
@@ -550,7 +550,13 @@ void loop() {
         turn_info = TURN_INFO_PLAYER;
       }
       Serial2.print('0');
-    } else if (cmd == '')
+    } else if (cmd == 't') { // check toggle switch on clock
+      if (digitalRead(TOGGLE_SWITCH)) {
+        Serial2.print('h');
+      } else {
+        Serial2.print('r');
+      }
+    }
   }
 }
 
@@ -577,4 +583,6 @@ available commands:
   s: set turn
     s[robot or human]
     example: sr (robot) / sh (human)
+  t: check toggle switch on clock
+    returns 'r' if robot plays black, 'h' if human plays black
 */

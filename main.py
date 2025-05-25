@@ -53,7 +53,17 @@ def main():
         #serial_connection.write('h'.encode())
         #wait_finish()
 
-        AI_PLAYER = WHITE
+        # check which plays black
+        if serial_connection:
+            serial_connection.write('t'.encode())
+            received = serial_connection.read(1)  # Read one byte
+            if received == b'r':
+                AI_PLAYER = BLACK
+            else:
+                AI_PLAYER = WHITE
+            black_player = 'Robot' if AI_PLAYER == BLACK else 'Human'
+            white_player = 'Robot' if AI_PLAYER == WHITE else 'Human'
+            print('Black: ' + black_player + ' White: ' + white_player)
 
         robot_player_str = 'b' if AI_PLAYER == BLACK else 'w'
         human_player_str = 'w' if AI_PLAYER == BLACK else 'b'
@@ -65,8 +75,8 @@ def main():
 
         while True:
             if serial_connection:
-                # Send 'c' to the serial port
-                # Check if 's' is received before sending 'c'
+
+                # check turn
                 need_to_put_disc = False
                 serial_connection.write('b'.encode())
                 received = serial_connection.read(1)  # Read one byte

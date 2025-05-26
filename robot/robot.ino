@@ -4,6 +4,7 @@
 #include <MsTimer2.h>
 
 SoftwareSerial Serial2(3, 2);
+#define SERIAL2_TIMEOUT 3500 // ms
 
 // krs servo
 #define EN_PIN 4
@@ -448,6 +449,12 @@ void set_camera() {
   move_arm(CAMERA_RIGHT_X, CAMERA_RIGHT_Y, RIGHT, KRS_SERVO_SPEED, CAMERA_RIGHT_MODE);
 }
 
+bool wait_serial(int n) {
+  unsigned long start = millis();
+  while (Serial2.available() < n && millis() - start <= SERIAL2_TIMEOUT);
+  return Serial2.available() >= n;
+}
+
 
 void loop() {
   bool player_button_pressed = false;
@@ -459,7 +466,9 @@ void loop() {
   if (Serial2.available()) {
     char cmd = Serial2.read();
     if (cmd == 'p') { // put color x y
-      while (Serial2.available() < 3);
+      if (!wait_serial(3)) {
+        continue;
+      }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
       char y_char = Serial2.read();
@@ -480,7 +489,9 @@ void loop() {
       put_disc(LEFT, color);
       Serial2.print('0');
     } else if (cmd == 'f') { // flip color_from x y
-      while (Serial2.available() < 3);
+    if (!wait_serial(3)) {
+        continue;
+      }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
       char y_char = Serial2.read();
@@ -498,7 +509,9 @@ void loop() {
       put_disc(RIGHT, color ^ 1);
       Serial2.print('0');
     } else if (cmd == 'm') { // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
-      while (Serial2.available() < 9);
+      if (!wait_serial(9)) {
+        continue;
+      }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
       char y_char = Serial2.read();
@@ -528,7 +541,9 @@ void loop() {
       set_starting_board();
       Serial2.print('0');
     } else if (cmd == 'g') { // start game [color]
-      while (Serial2.available() < 1);
+      if (!wait_serial(1)) {
+        continue;
+      }
       char color_char = Serial2.read(); // robot is black / white
       if (color_char == 'b') {
         turn_info = TURN_INFO_ROBOT;
@@ -557,7 +572,9 @@ void loop() {
         }
       }
     } else if (cmd == 's') { // set turn
-      while (Serial2.available() < 1);
+      if (!wait_serial(1)) {
+        continue;
+      }
       char player_char = Serial2.read(); // robot / human
       if (player_char == 'r') {
         turn_info = TURN_INFO_ROBOT;

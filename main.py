@@ -8,7 +8,7 @@ from ai import *
 
 def start_serial_communication(port, baudrate):
     try:
-        ser = serial.Serial(port, baudrate, timeout=1)
+        ser = serial.Serial(port, baudrate, timeout=3.5)
         print(f"Serial communication started on {port} at {baudrate} baud.")
         return ser
     except serial.SerialException as e:
@@ -67,9 +67,12 @@ def main():
 
         # check which plays black
         if serial_connection:
-            serial_connection.write('t'.encode())
-            received = serial_connection.read(1)  # Read one byte
-            if received == b'r':
+            received = ''
+            while received != 'r' and received != 'h':
+                serial_connection.write('t'.encode())
+                received = serial_connection.read(1).decode()
+                print('turn?', received)
+            if received == 'r':
                 ai_player = BLACK
             else:
                 ai_player = WHITE
@@ -150,12 +153,16 @@ def main():
                 othello.move(selected_move_y, selected_move_x)
                 board_recognized = False
 
-            elif serial_connection: # human's turn
+            #elif serial_connection: # human's turn
+            else: # human's turn
                 #print("human's turn")
                 # check turn
-                serial_connection.write('b'.encode())
-                received = serial_connection.read(1)  # Read one byte
-                if received == b'y':
+                received = ''
+                while received != 'y' and received != 'n':
+                    serial_connection.write('b'.encode())
+                    received = serial_connection.read(1).decode()
+                    print('button?', received)
+                if received == 'y':
                     serial_connection.write('sr'.encode())
                     wait_finish()
 
@@ -175,7 +182,7 @@ def main():
                     put_y, put_x = get_put_place(othello, othello_received)
                     if put_y == -1 or put_x == -1:
                         error_found = True
-                        print('ERROR put disc on board')
+                        print('ERROR please put disc on the board')
                     if not othello.is_legal(put_y, put_x):
                         error_found = True
                         print('ERROR illegal move')

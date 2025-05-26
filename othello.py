@@ -15,38 +15,67 @@ def inside(y, x):
 class Othello:
     
     # 初期化
-    def __init__(self):
-        
-        # 盤面の状態 0: 黒 1: 白 2: 空
-        self.grid = [[EMPTY for _ in range(HW)] for _ in range(HW)]
-        self.grid[3][3] = WHITE
-        self.grid[3][4] = BLACK
-        self.grid[4][3] = BLACK
-        self.grid[4][4] = WHITE
-        
-        # プレーヤー情報 0: 黒 1: 白 -1: 終局
-        self.player = BLACK
-        
-        # 石数 n_discs[0]: 黒 n_discs[1]: 白
-        self.n_discs = [2, 2]
+    def __init__(self, board_arr=None, player=None):
+        if board_arr != None and player != None:
+            
+            # 盤面の状態 0: 黒 1: 白 2: 空
+            self.grid = board_arr
 
-    def __init__(self, board_arr, player):
-        
-        # 盤面の状態 0: 黒 1: 白 2: 空
-        self.grid = board_arr
-
-        # プレーヤー情報 0: 黒 1: 白 -1: 終局
-        self.player = player
-        
-        # 石数 n_discs[0]: 黒 n_discs[1]: 白
-        self.n_discs = [0, 0]
-        for y in range(HW):
-            for x in range(HW):
-                if self.grid[y][x] == BLACK:
-                    self.n_discs[0] += 1
-                elif self.grid[y][x] == WHITE:
-                    self.n_discs[1] += 1
+            # プレーヤー情報 0: 黒 1: 白 -1: 終局
+            self.player = player
+            
+            # 石数 n_discs[0]: 黒 n_discs[1]: 白
+            self.n_discs = [0, 0]
+            for y in range(HW):
+                for x in range(HW):
+                    if self.grid[y][x] == BLACK:
+                        self.n_discs[0] += 1
+                    elif self.grid[y][x] == WHITE:
+                        self.n_discs[1] += 1
+        else:
+            # 盤面の状態 0: 黒 1: 白 2: 空
+            self.grid = [[EMPTY for _ in range(HW)] for _ in range(HW)]
+            self.grid[3][3] = WHITE
+            self.grid[3][4] = BLACK
+            self.grid[4][3] = BLACK
+            self.grid[4][4] = WHITE
+            
+            # プレーヤー情報 0: 黒 1: 白 -1: 終局
+            self.player = BLACK
+            
+            # 石数 n_discs[0]: 黒 n_discs[1]: 白
+            self.n_discs = [2, 2]
     
+    def is_legal(self, y, x):
+        # すでに石が置いてあれば必ず非合法
+        if self.grid[y][x] != EMPTY:
+            return False
+        
+        # 8方向それぞれ合法か見ていく
+        legal_flag = False
+        for dr in range(8):
+            dr_legal_flag1 = False
+            dr_legal_flag2 = False
+            ny = y
+            nx = x
+            for _ in range(HW - 1):
+                ny += dy[dr]
+                nx += dx[dr]
+                if not inside(ny, nx):
+                    dr_legal_flag1 = False
+                    break
+                elif self.grid[ny][nx] == EMPTY:
+                    dr_legal_flag1 = False
+                    break
+                elif self.grid[ny][nx] != self.player:
+                    dr_legal_flag1 = True
+                elif self.grid[ny][nx] == self.player:
+                    dr_legal_flag2 = True
+                    break
+            if dr_legal_flag1 and dr_legal_flag2:
+                legal_flag = True
+                break
+        return legal_flag
     
     # 合法手生成 合法手の位置をTrueにした配列を返す
     def get_legal(self):
@@ -56,37 +85,7 @@ class Othello:
         # 各マスについて合法かどうかチェック
         for y in range(HW):
             for x in range(HW):
-                # すでに石が置いてあれば必ず非合法
-                if self.grid[y][x] != EMPTY:
-                    continue
-                
-                # 8方向それぞれ合法か見ていく
-                legal_flag = False
-                for dr in range(8):
-                    dr_legal_flag1 = False
-                    dr_legal_flag2 = False
-                    ny = y
-                    nx = x
-                    for _ in range(HW - 1):
-                        ny += dy[dr]
-                        nx += dx[dr]
-                        if not inside(ny, nx):
-                            dr_legal_flag1 = False
-                            break
-                        elif self.grid[ny][nx] == EMPTY:
-                            dr_legal_flag1 = False
-                            break
-                        elif self.grid[ny][nx] != self.player:
-                            dr_legal_flag1 = True
-                        elif self.grid[ny][nx] == self.player:
-                            dr_legal_flag2 = True
-                            break
-                    if dr_legal_flag1 and dr_legal_flag2:
-                        legal_flag = True
-                        break
-                
-                # 合法だったらgridの値を更新
-                if legal_flag:
+                if self.is_legal(y, x):
                     legal_moves[y][x] = True
         
         return legal_moves
@@ -140,8 +139,8 @@ class Othello:
         return flipped
     
     # 着手 着手成功ならTrueが、失敗したらFalseが返る
-    def move(self, y, x):
-        flipped = self.get_flipped(y, x)
+    def move(self, put_y, put_x):
+        flipped = self.get_flipped(put_y, put_x)
         if flipped is None:
             return False
         
@@ -154,7 +153,7 @@ class Othello:
                     n_flipped += 1
         
         # 着手部分の更新
-        self.grid[y][x] = self.player
+        self.grid[put_y][put_x] = self.player
         
         # 石数の更新
         self.n_discs[self.player] += n_flipped + 1

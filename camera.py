@@ -96,8 +96,8 @@ def recognize_disc_place(transformed):
         #local_maxima = cv2.dilate(normalized_distance, None) == normalized_distance
         local_maxima = np.uint8(local_maxima) * 255
         local_maxima = cv2.bitwise_and(local_maxima, disc_mask)
-        # normalized_distanceの要素が70以上のマスクを作成
-        threshold_mask = cv2.inRange(normalized_distance, 70, 255)
+        # normalized_distanceの要素が90以上のマスクを作成
+        threshold_mask = cv2.inRange(normalized_distance, 90, 255)
         local_maxima = cv2.bitwise_and(local_maxima, threshold_mask)
         if DEBUG_IMSHOW:
             cv2.imshow('Local Maxima ' + ('Black' if i == BLACK else 'White'), local_maxima)
@@ -197,7 +197,7 @@ def get_transformed_board():
         transformed = cv2.convertScaleAbs(transformed, alpha=1, beta=adjustment)
 
     # 変換された画像をぼやかす
-    transformed = cv2.blur(transformed, (3, 3))
+    transformed = cv2.blur(transformed, (5, 5))
 
     # 取得した点をフレーム上に描画
     for i, point in enumerate(points):

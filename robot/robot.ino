@@ -326,28 +326,54 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   int theta2_start = krs.getPos(KRS_ID_ELBOW);
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
-  int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
-  int min_n_steps = 60 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
-  if (step < min_n_steps) {
-    step = min_n_steps;
-  }
-  for (int i = 0; i < step; ++i) {
-    //double d = (1.0 - cos(PI / step * i)) * 0.5;
-    // double d = 1.0 - exp(-6.0 * (double)i / (double)step);
-    double x = (double)i / (double)step;
-    double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
-    //double b = 1.8 + 2000.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW);
-    double weight = 1.0 - pow(a, 2.0);
-    int deg1 = round((double)theta1_start + weight * diff_theta1);
-    int deg2 = round((double)theta2_start + weight * diff_theta2);
+
+  if (diff_theta2 > -500 || abs(diff_theta1) < 250) { // sametime
+    int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
+    int min_n_steps = 60 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
+    if (step < min_n_steps) {
+      step = min_n_steps;
+    }
+    for (int i = 0; i < step; ++i) {
+      //double d = (1.0 - cos(PI / step * i)) * 0.5;
+      // double d = 1.0 - exp(-6.0 * (double)i / (double)step);
+      double x = (double)i / (double)step;
+      double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
+      //double b = 1.8 + 2000.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW);
+      double weight = 1.0 - pow(a, 2.0);
+      int deg1 = round((double)theta1_start + weight * diff_theta1);
+      int deg2 = round((double)theta2_start + weight * diff_theta2);
+      krs.setPos(KRS_ID_ROOT, deg1);
+      krs.setPos(KRS_ID_ELBOW, deg2);
+      delay(delay_msec);
+    }
+    int deg1 = round((double)theta1_start + diff_theta1);
+    int deg2 = round((double)theta2_start + diff_theta2);
     krs.setPos(KRS_ID_ROOT, deg1);
     krs.setPos(KRS_ID_ELBOW, deg2);
-    delay(delay_msec);
+  } else { // root first
+    int step1 = abs(diff_theta1) / (8000.0 / 270.0);
+    for (int i = 0; i < step1; ++i) {
+      double x = (double)i / (double)step1;
+      double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
+      double weight = 1.0 - pow(a, 2.0);
+      int deg1 = round((double)theta1_start + weight * diff_theta1);
+      krs.setPos(KRS_ID_ROOT, deg1);
+      delay(delay_msec);
+    }
+    int deg1 = round((double)theta1_start + diff_theta1);
+    krs.setPos(KRS_ID_ROOT, deg1);
+    int step2 = abs(diff_theta2) / (8000.0 / 270.0);
+    for (int i = 0; i < step2; ++i) {
+      double x = (double)i / (double)step2;
+      double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
+      double weight = 1.0 - pow(a, 2.0);
+      int deg2 = round((double)theta2_start + weight * diff_theta2);
+      krs.setPos(KRS_ID_ELBOW, deg2);
+      delay(delay_msec);
+    }
+    int deg2 = round((double)theta2_start + diff_theta2);
+    krs.setPos(KRS_ID_ELBOW, deg2);
   }
-  int deg1 = round((double)theta1_start + diff_theta1);
-  int deg2 = round((double)theta2_start + diff_theta2);
-  krs.setPos(KRS_ID_ROOT, deg1);
-  krs.setPos(KRS_ID_ELBOW, deg2);
 }
 
 void get_disc(int rl, int bw) {
@@ -467,7 +493,7 @@ void loop() {
     char cmd = Serial2.read();
     if (cmd == 'p') { // put color x y
       if (!wait_serial(3)) {
-        continue;
+        return;
       }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
@@ -490,7 +516,7 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'f') { // flip color_from x y
     if (!wait_serial(3)) {
-        continue;
+        return;
       }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
@@ -510,7 +536,7 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'm') { // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
       if (!wait_serial(9)) {
-        continue;
+        return;
       }
       char color_char = Serial2.read();
       char x_char = Serial2.read();
@@ -542,7 +568,7 @@ void loop() {
       Serial2.print('0');
     } else if (cmd == 'g') { // start game [color]
       if (!wait_serial(1)) {
-        continue;
+        return;
       }
       char color_char = Serial2.read(); // robot is black / white
       if (color_char == 'b') {
@@ -573,7 +599,7 @@ void loop() {
       }
     } else if (cmd == 's') { // set turn
       if (!wait_serial(1)) {
-        continue;
+        return;
       }
       char player_char = Serial2.read(); // robot / human
       if (player_char == 'r') {

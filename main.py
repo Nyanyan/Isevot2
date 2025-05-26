@@ -180,17 +180,19 @@ def main():
                     # check error
                     error_found = False
                     put_y, put_x = get_put_place(othello, othello_received)
-                    if put_y == -1 or put_x == -1:
+                    has_legal = othello.has_legal()
+                    if (put_y == -1 or put_x == -1) and has_legal:
                         error_found = True
                         print('ERROR please put disc on the board')
-                    if not othello.is_legal(put_y, put_x):
-                        error_found = True
-                        print('ERROR illegal move')
-                    print('before')
-                    othello.print()
-                    othello.move(put_y, put_x)
-                    print('moved', put_y, put_x)
-                    othello.print()
+                    if has_legal:
+                        if not othello.is_legal(put_y, put_x):
+                            error_found = True
+                            print('ERROR illegal move')
+                        print('before')
+                        othello.print()
+                        othello.move(put_y, put_x)
+                        print('moved', put_y, put_x)
+                        othello.print()
                     flip_error = get_flip_error(othello, othello_received)
                     if flip_error:
                         error_found = True

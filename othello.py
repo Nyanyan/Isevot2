@@ -77,6 +77,18 @@ class Othello:
                 break
         return legal_flag
     
+    def is_end(self):
+        if self.has_legal():
+            return False
+        res = True
+        # 手番の更新
+        self.player = 1 - self.player
+        if self.has_legal():
+            res = False
+        # 手番の更新
+        self.player = 1 - self.player
+        return res
+
     # 合法手生成 合法手の位置をTrueにした配列を返す
     def get_legal(self):
         # 合法手をTrueにする配列
@@ -163,6 +175,10 @@ class Othello:
         self.player = 1 - self.player
 
         return True
+    
+    def move_pass(self):
+        # 手番の更新
+        self.player = 1 - self.player
 
     # 標準入力からの入力で着手を行う
     def move_stdin(self):

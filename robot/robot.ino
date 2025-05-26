@@ -327,7 +327,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
 
-  if (diff_theta2 > -500 || abs(diff_theta1) < 250) { // sametime
+  if (diff_theta2 > -200 || abs(diff_theta1) < 200 || theta2 < 100.0) { // sametime
     int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
     int min_n_steps = 60 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
     if (step < min_n_steps) {
@@ -491,7 +491,23 @@ void loop() {
   }
   if (Serial2.available()) {
     char cmd = Serial2.read();
-    if (cmd == 'p') { // put color x y
+    if (cmd == 'd') { // hold disc [color]
+      if (!wait_serial(1)) {
+        return;
+      }
+      char color_char = Serial2.read();
+      int color = (color_char == 'b') ? BLACK : WHITE;
+      if (color == BLACK) {
+        get_disc(LEFT, BLACK);
+      } else {
+        get_disc(RIGHT, BLACK);
+      }
+      set_home();
+      if (color == WHITE) {
+        flip_disc(RIGHT, BLACK);
+      }
+      Serial2.print('0');
+    } else if (cmd == 'p') { // put color x y
       if (!wait_serial(3)) {
         return;
       }
@@ -502,15 +518,15 @@ void loop() {
       int x = x_char - '0';
       int y = y_char - '0';
       int cell = HW2 - 1 - (y * HW + x);
-      if (color == BLACK) {
-        get_disc(LEFT, BLACK);
-      } else {
-        get_disc(RIGHT, BLACK);
-      }
+      // if (color == BLACK) {
+      //   get_disc(LEFT, BLACK);
+      // } else {
+      //   get_disc(RIGHT, BLACK);
+      // }
       move_arm(calc_x_mm(cell), calc_y_mm(cell), LEFT, KRS_SERVO_SPEED, arm_mode[cell]);
-      if (color == WHITE) {
-        flip_disc(RIGHT, BLACK);
-      }
+      // if (color == WHITE) {
+      //   flip_disc(RIGHT, BLACK);
+      // }
       lower_arm(LEFT);
       put_disc(LEFT, color);
       Serial2.print('0');
@@ -626,6 +642,9 @@ void loop() {
 
 /*
 available commands:
+  d: hold disc
+    d[color]
+    example: dw
   p: put a disc
     p[color][x][y]
     example: pb45

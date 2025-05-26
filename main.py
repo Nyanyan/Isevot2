@@ -2,6 +2,7 @@ import serial
 import sys
 import signal
 import time
+import random
 from othello import *
 from camera import *
 from ai import *
@@ -118,10 +119,25 @@ def main():
                             wait_finish()
                 if othello.get_legal():
                     print("AI's turn")
+                    hold_cmd = 'd' + robot_player_str
+                    print(hold_cmd)
+                    serial_connection.write(hold_cmd.encode())
+                    wait_finish()
+                    time.sleep(1.0 + random.random() * 2.0)
                     selected_move_x, selected_move_y = ai_get_best_move(othello)
                     print('selected', selected_move_x, selected_move_y)
                 else:
-                    print("No legal moves available.")
+                    if othello.is_end():
+                        print('Game Over')
+                    else:
+                        print("No legal moves available. Pass")
+                        serial_connection.write('q'.encode()) # push clock
+                        wait_finish()
+                        serial_connection.write('sh'.encode()) # human's turn
+                        wait_finish()
+                        serial_connection.write('h'.encode()) # set arm to home
+                        wait_finish()
+                        othello.move_pass()
                     continue
                 flipped = othello.get_flipped(selected_move_y, selected_move_x)
                 put_cmd = 'p' + robot_player_str + str(HW - 1 - selected_move_x) + str(HW - 1 - selected_move_y)
@@ -148,7 +164,7 @@ def main():
                 wait_finish()
                 serial_connection.write('sh'.encode()) # human's turn
                 wait_finish()
-                serial_connection.write('h'.encode()) # set arm to homw
+                serial_connection.write('h'.encode()) # set arm to home
                 wait_finish()
                 othello.move(selected_move_y, selected_move_x)
                 board_recognized = False
@@ -174,6 +190,8 @@ def main():
                     while board_arr == None:
                         board_arr, disc_slip_mm = get_board()
                     othello_received = Othello(board_arr, ai_player)
+                    print('managed')
+                    othello.print()
                     print('received')
                     othello_received.print()
 

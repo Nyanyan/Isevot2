@@ -114,7 +114,7 @@ const int arm_mode[HW2] = {
 };
 
 // speed
-#define KRS_SERVO_SPEED 6
+#define KRS_SERVO_SPEED 10
 
 // clock
 #define TURN_INFO_NOT_PLAYING -1
@@ -329,7 +329,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
 
   if (diff_theta2 > -200 || abs(diff_theta1) < 200 || theta2 < 100.0) { // sametime
     int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
-    int min_n_steps = 60 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
+    int min_n_steps = 40 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
     if (step < min_n_steps) {
       step = min_n_steps;
     }

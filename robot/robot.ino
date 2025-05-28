@@ -78,9 +78,9 @@ const bool POLARITY[2][2] = {
 };
 
 // pwm servo deg (right, left)
-const int HOLD_DEG_UP[2] = { 162, 21 };
-const int HOLD_DEG_OPEN[2] = { 142, 41 };
-const int HOLD_DEG_CLOSE[2] = { 40, 148 };
+const int HOLD_DEG_UP[2] = { 162, 20 };
+const int HOLD_DEG_OPEN[2] = { 142, 40 };
+const int HOLD_DEG_CLOSE[2] = { 40, 147 };
 #define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 45
 #define VERTICAL_DEG_CLOCK 70
@@ -100,7 +100,7 @@ const int HOLD_DEG_CLOSE[2] = { 40, 148 };
 #define LEN_CENTER_TO_CELL_X 15.750
 #define LEN_CELL_SIZE 29.500
 #define LEN_ARM_RESTRICTED_RADIUS_RIGHT 140.000
-#define LEN_ARM_RESTRICTED_RADIUS_LEFT 70.000
+#define LEN_ARM_RESTRICTED_RADIUS_LEFT 61.000
 #define LEN_ARM_RESTRICTED_RADIUS_CENTER 105.000
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
@@ -388,15 +388,15 @@ void move_arm_legacy(double x_mm, double y_mm, int rl, int delay_msec, int mode)
   int diff_theta2 = theta2_converted - theta2_start;
 
   if (diff_theta2 > -200 || abs(diff_theta1) < 200 || theta2 < 100.0) {  // sametime
-    int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
-    int min_n_steps = 40 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
+    int step = (double)max(abs(diff_theta1), abs(diff_theta2)) * 1.7 / (8000.0 / 270.0);
+    int min_n_steps = 30 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
     if (step < min_n_steps) {
       step = min_n_steps;
     }
     for (int i = 0; i < step; ++i) {
       //double d = (1.0 - cos(PI / step * i)) * 0.5;
       // double d = 1.0 - exp(-6.0 * (double)i / (double)step);
-      double x = (double)i / (double)step;
+      double x = (double)i / (double)(step - 1);
       double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
       //double b = 1.8 + 2000.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW);
       double weight = 1.0 - pow(a, 2.0);
@@ -413,7 +413,7 @@ void move_arm_legacy(double x_mm, double y_mm, int rl, int delay_msec, int mode)
   } else {  // root first
     int step1 = abs(diff_theta1) / (8000.0 / 270.0);
     for (int i = 0; i < step1; ++i) {
-      double x = (double)i / (double)step1;
+      double x = (double)i / (double)(step1 - 1);
       double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
       double weight = 1.0 - pow(a, 2.0);
       int deg1 = round((double)theta1_start + weight * diff_theta1);
@@ -424,7 +424,7 @@ void move_arm_legacy(double x_mm, double y_mm, int rl, int delay_msec, int mode)
     krs.setPos(KRS_ID_ROOT, deg1);
     int step2 = abs(diff_theta2) / (8000.0 / 270.0);
     for (int i = 0; i < step2; ++i) {
-      double x = (double)i / (double)step2;
+      double x = (double)i / (double)(step2 - 1);
       double a = (1.0 - cos(PI * (1.0 + x))) * 0.5;
       double weight = 1.0 - pow(a, 2.0);
       int deg2 = round((double)theta2_start + weight * diff_theta2);
@@ -491,78 +491,55 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   // Serial2.print('\t');
   // Serial2.println(y_mm_center);
 
+  double distance_mm = sqrt(
+    (x_mm_center - x_mm_center_now) * (x_mm_center - x_mm_center_now) + 
+    (y_mm_center - y_mm_center_now) * (y_mm_center - y_mm_center_now)
+  );
+  int step = distance_mm / 2.0; // avg 2mm for 1 step
+  step = max(30, step);
+
   bool use_straight = true;
-  if (abs(x_mm_center - x_mm_center_now) > 0.1) {
-    double tilt = (y_mm_center - y_mm_center_now) / (x_mm_center - x_mm_center_now);
-    // distance from (0, 0) to tilt * x - y + (y1 - tilt * x1) = 0
-    double d_from_root = abs(y_mm_center - tilt * x_mm_center) / sqrt(tilt * tilt + 1.0);
-    if (d_from_root < LEN_ARM_RESTRICTED_RADIUS_CENTER) {
-      use_straight = false;
-    }
-  } else {
-    double r_center = sqrt(x_mm_center * x_mm_center + y_mm_center * y_mm_center);
-    double r_center_now = sqrt(x_mm_center_now * x_mm_center_now + y_mm_center_now * y_mm_center_now);
-    double d_from_root = min(r_center, r_center_now);
-    if (d_from_root < LEN_ARM_RESTRICTED_RADIUS_CENTER) {
+  for (int i = 0; i < step && use_straight; ++i) {
+    double weight = (double)i / (double)(step - 1);
+    double x = x_mm_rl_now * (1.0 - weight) + x_mm * weight;
+    double y = y_mm_rl_now * (1.0 - weight) + y_mm * weight;
+    double r2 = x * x + y * y;
+    // Serial2.print(i);
+    // Serial2.print('\t');
+    // Serial2.print(step);
+    // Serial2.print('\t');
+    // Serial2.print(weight);
+    // Serial2.print('\t');
+    // Serial2.print(x);
+    // Serial2.print('\t');
+    // Serial2.print(y);
+    // Serial2.print('\t');
+    // Serial2.println(r2);
+    if (
+      (rl == RIGHT && r2 < LEN_ARM_RESTRICTED_RADIUS_RIGHT * LEN_ARM_RESTRICTED_RADIUS_RIGHT) || 
+      (rl == LEFT && r2 < LEN_ARM_RESTRICTED_RADIUS_LEFT * LEN_ARM_RESTRICTED_RADIUS_LEFT)
+    ) {
+      // Serial2.println("LEGACY");
       use_straight = false;
     }
   }
 
   if (use_straight) {
-    double distance_mm = sqrt((x_mm_center - x_mm_center_now) * (x_mm_center - x_mm_center_now) + (y_mm_center - y_mm_center_now) * (y_mm_center - y_mm_center_now));
-    int step = distance_mm / 2.0; // avg 2mm for 1 step
-    step = max(20, step);
     for (int i = 0; i < step; ++i) {
-      double a = (double)i / (double)step;
+      double a = (double)i / (double)(step - 1);
       double b = (1.0 - cos(PI * (1.0 + a))) * 0.5;
       double weight = 1.0 - pow(b, 2.0);
       double x = x_mm_rl_now * (1.0 - weight) + x_mm * weight;
       double y = y_mm_rl_now * (1.0 - weight) + y_mm * weight;
-      double r2 = x * x + y * y;
-      double deg = 90.0; 
-      if (abs(x) > 0.1) {
-        deg = atan(y / x) * 180.0 / PI;
-        if (deg < 0.0) {
-          deg += 180.0;
-        }
-      }
-      if (rl == RIGHT && r2 < LEN_ARM_RESTRICTED_RADIUS_RIGHT * LEN_ARM_RESTRICTED_RADIUS_RIGHT) {
-        // Serial2.print("fixed(r) deg ");
-        // Serial2.print(deg);
-        // Serial2.print("\tfrom ");
-        // Serial2.print(x);
-        // Serial2.print('\t');
-        // Serial2.print(y);
-        // Serial2.print("\tto ");
-        x = LEN_ARM_RESTRICTED_RADIUS_RIGHT * cos(deg * PI / 180.0);
-        y = LEN_ARM_RESTRICTED_RADIUS_RIGHT * sin(deg * PI / 180.0);
-        // Serial2.print(x);
-        // Serial2.print('\t');
-        // Serial2.println(y);
-      } else if (rl == LEFT && r2 < LEN_ARM_RESTRICTED_RADIUS_LEFT * LEN_ARM_RESTRICTED_RADIUS_LEFT) {
-        // Serial2.print("fixed(l) deg ");
-        // Serial2.print(deg);
-        // Serial2.print("\tfrom ");
-        // Serial2.print(x);
-        // Serial2.print('\t');
-        // Serial2.print(y);
-        // Serial2.print("\tto ");
-        x = LEN_ARM_RESTRICTED_RADIUS_LEFT * cos(deg * PI / 180.0);
-        y = LEN_ARM_RESTRICTED_RADIUS_LEFT * sin(deg * PI / 180.0);
-        // Serial2.print(x);
-        // Serial2.print('\t');
-        // Serial2.println(y);
-      }
       // Serial2.print(x);
       // Serial2.print('\t');
       // Serial2.println(y);
-
       set_position_arm(x, y, rl, mode);
       delay(delay_msec);
     }
     set_position_arm(x_mm, y_mm, rl, mode);
   } else {
-    move_arm_legacy(x_mm, y_mm, rl, delay_msec * 1.5, mode);
+    move_arm_legacy(x_mm, y_mm, rl, delay_msec, mode);
   }
 }
 

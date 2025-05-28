@@ -659,6 +659,7 @@ void loop() {
   }
   if (Serial2.available()) {
     attach_servo();
+    initialize_servo();
     char cmd = Serial2.read();
     if (cmd == 'd') {  // hold disc [color]
       if (!wait_serial(1)) {

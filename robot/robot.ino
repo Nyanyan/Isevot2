@@ -409,6 +409,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
 
   double distance_mm = sqrt((x_mm_center - x_mm_center_now) * (x_mm_center - x_mm_center_now) + (y_mm_center - y_mm_center_now) * (y_mm_center - y_mm_center_now));
   int step = distance_mm / 2.0; // avg 2mm for 1 step
+  step = max(20, step);
   for (int i = 0; i < step; ++i) {
     double a = (double)i / (double)step;
     double b = (1.0 - cos(PI * (1.0 + a))) * 0.5;

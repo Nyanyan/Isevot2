@@ -78,9 +78,9 @@ const bool POLARITY[2][2] = {
 };
 
 // pwm servo deg (right, left)
-const int HOLD_DEG_UP[2] = { 162, 23 };
-const int HOLD_DEG_OPEN[2] = { 142, 43 };
-const int HOLD_DEG_CLOSE[2] = { 40, 150 };
+const int HOLD_DEG_UP[2] = { 162, 21 };
+const int HOLD_DEG_OPEN[2] = { 142, 41 };
+const int HOLD_DEG_CLOSE[2] = { 40, 148 };
 #define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 45
 #define VERTICAL_DEG_CLOCK 70
@@ -141,7 +141,7 @@ const int arm_mode[HW2] = {
 };
 
 // speed
-#define KRS_SERVO_SPEED 7
+#define KRS_SERVO_SPEED 6
 
 // clock
 #define TURN_INFO_NOT_PLAYING -1
@@ -183,6 +183,7 @@ void initialize_servo() {
   for (int i = 0; i < 2; ++i) {
     hold_servo[i].write(HOLD_DEG_OPEN[i]);
   }
+  delay(500);
 }
 
 void setup() {

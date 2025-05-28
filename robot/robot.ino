@@ -4,7 +4,7 @@
 #include <MsTimer2.h>
 
 SoftwareSerial Serial2(3, 2);
-#define SERIAL2_TIMEOUT 3500 // ms
+#define SERIAL2_TIMEOUT 3500  // ms
 
 // krs servo
 #define EN_PIN 4
@@ -21,7 +21,7 @@ IcsHardSerialClass krs(&Serial, EN_PIN, BAUDRATE, TIMEOUT);
 #define SERVO_LEFT 11
 
 Servo servo_vertical, servo_right, servo_left;
-Servo hold_servo[2]; // right, left
+Servo hold_servo[2];  // right, left
 
 #define RELAY_VOLTAGE A3
 #define RELAY_POLARITY A2
@@ -49,14 +49,14 @@ Servo hold_servo[2]; // right, left
 #define VOLTAGE_12V LOW
 #define VOLTAGE_5V HIGH
 const bool POLARITY[2][2] = {
-  {true, false}, // right black, right white
-  {false, true}  // left black, left white
+  { true, false },  // right black, right white
+  { false, true }   // left black, left white
 };
 
 // pwm servo deg (right, left)
-const int HOLD_DEG_UP[2] = {162, 23};
-const int HOLD_DEG_OPEN[2] = {142, 43};
-const int HOLD_DEG_CLOSE[2] = {40, 150};
+const int HOLD_DEG_UP[2] = { 162, 23 };
+const int HOLD_DEG_OPEN[2] = { 142, 43 };
+const int HOLD_DEG_CLOSE[2] = { 40, 150 };
 #define VERTICAL_DEG_UP 20
 #define VERTICAL_DEG_SUPPLY 45
 #define VERTICAL_DEG_CLOCK 70
@@ -103,13 +103,13 @@ const int arm_mode[HW2] = {
   0, 0, 0, 0, 0, 0, 0, 1, 
   0, 0, 0, 0, 0, 0, 0, 1
   */
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
-  0, 0, 0, 0, 0, 0, 0, 0, 
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0
 };
 
@@ -137,18 +137,33 @@ void blink_led() {
   }
 }
 
-void setup() {
-  // Software Serial for PC
-  Serial2.begin(9600);
-  
-  // Hardware Serial for Servo
-  krs.begin();
-  //Serial.begin(115200);
-
+void attach_servo() {
   // PWM servo
   servo_vertical.attach(SERVO_VERTICAL);
   hold_servo[RIGHT].attach(SERVO_RIGHT);
   hold_servo[LEFT].attach(SERVO_LEFT);
+}
+
+void detach_servo() {
+  servo_vertical.detach();
+  hold_servo[RIGHT].detach();
+  hold_servo[LEFT].detach();
+}
+
+void initialize_servo() {
+  // initialize
+  servo_vertical.write(VERTICAL_DEG_UP);
+  for (int i = 0; i < 2; ++i) {
+    hold_servo[i].write(HOLD_DEG_OPEN[i]);
+  }
+}
+
+void setup() {
+  // Software Serial for PC
+  Serial2.begin(9600);
+
+  // Hardware Serial for Servo
+  krs.begin();
 
   // Relay for electromagnets
   pinMode(RELAY_VOLTAGE, OUTPUT);
@@ -165,32 +180,17 @@ void setup() {
   // debug LED
   pinMode(LED, OUTPUT);
 
-  // initialize
-  servo_vertical.write(VERTICAL_DEG_UP);
-  for (int i = 0; i < 2; ++i) {
-    hold_servo[i].write(HOLD_DEG_OPEN[i]);
-  }
+  attach_servo();
+  initialize_servo();
+  detach_servo();
 
   MsTimer2::set(500, blink_led);
   MsTimer2::start();
-  
+
   delay(1000);
   Serial2.println("Start!");
   digitalWrite(LED, HIGH);
   set_home();
-}
-
-void move_vertical(int now_deg, int to_deg, int delay_msec_per_deg) {
-  int deg_dif = abs(now_deg - to_deg);
-  int delta = 1;
-  if (to_deg < now_deg) {
-    delta = -1;
-  }
-  for (int deg = now_deg; deg != to_deg; deg += delta) {
-    servo_vertical.write(deg);
-    delay(delay_msec_per_deg);
-  }
-  delay(10);
 }
 
 void lower_arm(int rl) {
@@ -199,14 +199,12 @@ void lower_arm(int rl) {
   delay(50);
   servo_vertical.write(VERTICAL_DEG_BOARD);
   delay(350);
-  //move_vertical(VERTICAL_DEG_UP, VERTICAL_DEG_BOARD, KRS_SERVO_SPEED);
 }
 
 void raise_arm() {
   servo_vertical.write(VERTICAL_DEG_UP);
   delay(350);
   open_hand();
-  //move_vertical(VERTICAL_DEG_BOARD, VERTICAL_DEG_UP, KRS_SERVO_SPEED);
 }
 
 void off_relay() {
@@ -285,11 +283,11 @@ void put_disc(int rl, int bw) {
   off_relay();
 }
 
-int convert_to_krs_diff(double deg) { // from neutral
+int convert_to_krs_diff(double deg) {  // from neutral
   return round(deg * 8000.0 / 270.0);
 }
 
-double convert_from_krs_diff(double krs_deg) { // from neutral
+double convert_from_krs_diff(double krs_deg) {  // from neutral
   return (krs_deg - 7500) * 270.0 / 8000.0;
 }
 
@@ -300,11 +298,11 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   const double L2 = LEN_ARM_ELBOW;
   const double L12 = L1 * L1;
   const double L22 = L2 * L2;
-  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI; // elbow
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;  // elbow
   double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
   int theta1_converted, theta2_converted;
   if (mode == 0) {
-    double theta1 = acos(x_mm / r) * 180.0 / PI + theta3; // shoulder
+    double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;  // shoulder
     if (rl == RIGHT) {
       theta2 -= ELBOW_FINGER_DEG;
     } else {
@@ -313,7 +311,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
     theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
     theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
   } else {
-    double theta1 = acos(-x_mm / r) * 180.0 / PI + theta3; // shoulder
+    double theta1 = acos(-x_mm / r) * 180.0 / PI + theta3;  // shoulder
     if (rl == RIGHT) {
       theta2 += ELBOW_FINGER_DEG;
     } else {
@@ -327,7 +325,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
   int diff_theta1 = theta1_converted - theta1_start;
   int diff_theta2 = theta2_converted - theta2_start;
 
-  if (diff_theta2 > -200 || abs(diff_theta1) < 200 || theta2 < 100.0) { // sametime
+  if (diff_theta2 > -200 || abs(diff_theta1) < 200 || theta2 < 100.0) {  // sametime
     int step = max(abs(diff_theta1), abs(diff_theta2)) / (8000.0 / 270.0);
     int min_n_steps = 40 + round(20.0 / (double)abs(theta2_converted - KRS_NEUTRAL_ELBOW));
     if (step < min_n_steps) {
@@ -350,7 +348,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
     int deg2 = round((double)theta2_start + diff_theta2);
     krs.setPos(KRS_ID_ROOT, deg1);
     krs.setPos(KRS_ID_ELBOW, deg2);
-  } else { // root first
+  } else {  // root first
     int step1 = abs(diff_theta1) / (8000.0 / 270.0);
     for (int i = 0; i < step1; ++i) {
       double x = (double)i / (double)step1;
@@ -415,10 +413,10 @@ void get_disc(int rl, int bw) {
 double calc_x_mm(int cell) {
   int x = cell % HW;
   double res = 0.0;
-  if (x <= 3) { // left
+  if (x <= 3) {  // left
     res += LEN_CENTER_TO_CELL_X;
     res += LEN_CELL_SIZE * (3 - x);
-  } else { // right
+  } else {  // right
     res -= LEN_CENTER_TO_CELL_X;
     res -= LEN_CELL_SIZE * (x - 4);
   }
@@ -433,8 +431,8 @@ double calc_y_mm(int cell) {
 }
 
 void set_starting_board() {
-  const int cells[4] = {27, 28, 35, 36};
-  const int colors[4] = {WHITE, BLACK, BLACK, WHITE};
+  const int cells[4] = { 27, 28, 35, 36 };
+  const int colors[4] = { WHITE, BLACK, BLACK, WHITE };
   /*
   for (int i = 0; i < 4; ++i) {
     get_disc(RIGHT);
@@ -477,12 +475,14 @@ void set_camera() {
 
 bool wait_serial(int n) {
   unsigned long start = millis();
-  while (Serial2.available() < n && millis() - start <= SERIAL2_TIMEOUT);
+  while (Serial2.available() < n && millis() - start <= SERIAL2_TIMEOUT)
+    ;
   return Serial2.available() >= n;
 }
 
 
 void loop() {
+  detach_servo();
   bool player_button_pressed = false;
   while (!Serial2.available()) {
     if (!digitalRead(PLAYER_BUTTON)) {
@@ -490,8 +490,9 @@ void loop() {
     }
   }
   if (Serial2.available()) {
+    attach_servo();
     char cmd = Serial2.read();
-    if (cmd == 'd') { // hold disc [color]
+    if (cmd == 'd') {  // hold disc [color]
       if (!wait_serial(1)) {
         return;
       }
@@ -507,7 +508,7 @@ void loop() {
         flip_disc(RIGHT, BLACK);
       }
       Serial2.print('0');
-    } else if (cmd == 'p') { // put color x y
+    } else if (cmd == 'p') {  // put color x y
       if (!wait_serial(3)) {
         return;
       }
@@ -530,8 +531,8 @@ void loop() {
       lower_arm(LEFT);
       put_disc(LEFT, color);
       Serial2.print('0');
-    } else if (cmd == 'f') { // flip color_from x y
-    if (!wait_serial(3)) {
+    } else if (cmd == 'f') {  // flip color_from x y
+      if (!wait_serial(3)) {
         return;
       }
       char color_char = Serial2.read();
@@ -550,7 +551,7 @@ void loop() {
       lower_arm(RIGHT);
       put_disc(RIGHT, color ^ 1);
       Serial2.print('0');
-    } else if (cmd == 'm') { // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
+    } else if (cmd == 'm') {  // modify color x y diff_x_mm(+/-00) diff_y_mm(+/-00)
       if (!wait_serial(9)) {
         return;
       }
@@ -573,64 +574,53 @@ void loop() {
       move_arm(calc_x_mm(cell), calc_y_mm(cell), RIGHT, KRS_SERVO_SPEED, arm_mode[cell]);
       put_disc(LEFT, color);
       Serial2.print('0');
-    } else if (cmd == 'h') { // home
+    } else if (cmd == 'h') {  // home
       set_home();
       Serial2.print('0');
-    } else if (cmd == 'c') { // camera
+    } else if (cmd == 'c') {  // camera
       set_camera();
       Serial2.print('0');
-    } else if (cmd == 'i') { // set initial board
+    } else if (cmd == 'i') {  // set initial board
       set_starting_board();
       Serial2.print('0');
-    } else if (cmd == 'g') { // start game [color]
+    } else if (cmd == 'g') {  // start game [color]
       if (!wait_serial(1)) {
         return;
       }
-      char color_char = Serial2.read(); // robot is black / white
+      char color_char = Serial2.read();  // robot is black / white
       if (color_char == 'b') {
         turn_info = TURN_INFO_ROBOT;
       } else {
         turn_info = TURN_INFO_PLAYER;
       }
       Serial2.print('0');
-    } else if (cmd == 'e') { // end game
+    } else if (cmd == 'e') {  // end game
       turn_info = TURN_INFO_NOT_PLAYING;
       Serial2.print('0');
-    } else if (cmd == 'b') { // check player's clock button
-      if (player_button_pressed) {
+    } else if (cmd == 'b') {  // check player's clock button
+      if (player_button_pressed || !digitalRead(PLAYER_BUTTON)) {
         Serial2.write('y');
       } else {
-        bool pushed = false;
-        for (int i = 0; i < 3000; ++i) {
-          if (!digitalRead(PLAYER_BUTTON)) {
-            Serial2.write('y');
-            pushed = true;
-            break;
-          }
-          delay(1);
-        }
-        if (!pushed) {
-          Serial2.write('n');
-        }
+        Serial2.write('n');
       }
-    } else if (cmd == 's') { // set turn
+    } else if (cmd == 's') {  // set turn
       if (!wait_serial(1)) {
         return;
       }
-      char player_char = Serial2.read(); // robot / human
+      char player_char = Serial2.read();  // robot / human
       if (player_char == 'r') {
         turn_info = TURN_INFO_ROBOT;
       } else if (player_char == 'h') {
         turn_info = TURN_INFO_PLAYER;
       }
       Serial2.print('0');
-    } else if (cmd == 't') { // check toggle switch on clock
+    } else if (cmd == 't') {  // check toggle switch on clock
       if (digitalRead(TOGGLE_SWITCH)) {
         Serial2.print('h');
       } else {
         Serial2.print('r');
       }
-    } else if (cmd == 'q') { // push clock
+    } else if (cmd == 'q') {  // push clock
       move_arm(CLOCK_X, CLOCK_Y, RIGHT, KRS_SERVO_SPEED, CLOCK_MODE);
       servo_vertical.write(VERTICAL_DEG_CLOCK);
       delay(200);

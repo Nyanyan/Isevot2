@@ -7,19 +7,21 @@ from othello import *
 from camera import *
 from ai import *
 
-def start_serial_communication(port, baudrate):
+#PORT = "COM5"  # Replace with your serial port
+PORT = "COM8"
+BAUDRATE = 9600  # Replace with your desired baud rate
+TIMEOUT = 1.0
+
+def start_serial_communication(port, BAUDRATE):
     try:
-        ser = serial.Serial(port, baudrate, timeout=3.5)
-        print(f"Serial communication started on {port} at {baudrate} baud.")
+        ser = serial.Serial(port, BAUDRATE, timeout=TIMEOUT)
+        print(f"Serial communication started on {port} at {BAUDRATE} baud.")
         return ser
     except serial.SerialException as e:
         print(f"Error starting serial communication: {e}")
         return None
 
-#port = "COM5"  # Replace with your serial port
-port = "COM8"
-baudrate = 9600  # Replace with your desired baud rate
-serial_connection = start_serial_communication(port, baudrate)
+serial_connection = start_serial_communication(PORT, BAUDRATE)
 
 def wait_finish():
     while serial_connection.read(1) != b'0':
@@ -177,8 +179,9 @@ def main():
                 while received != 'y' and received != 'n':
                     serial_connection.write('b'.encode())
                     received = serial_connection.read(1).decode()
-                    print('button?', received)
+                    #print('button?', received)
                 if received == 'y':
+                    print('button pressed')
                     serial_connection.write('sr'.encode())
                     wait_finish()
 

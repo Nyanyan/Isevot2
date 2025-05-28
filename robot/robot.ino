@@ -3,6 +3,30 @@
 #include <Servo.h>
 #include <MsTimer2.h>
 
+/*
+cell definition
+        ROBOT
+ 0  1  2  3  4  5  6  7
+ 8  9 10 11 12 13 14 15
+16 17 18 19 20 21 22 23
+24 25 26 27 28 29 30 31
+32 33 34 35 36 37 38 39
+40 41 42 43 44 45 46 47
+48 49 50 51 52 53 54 55
+56 57 58 59 60 61 62 63
+*/
+
+/*
+(x, y coordinate)
+        ROBOT
+         y=0
+x+ <---- x=0 <---- x-
+          ||
+          ||
+          \/ 
+          y+
+*/
+
 SoftwareSerial Serial2(3, 2);
 #define SERIAL2_TIMEOUT 3500  // ms
 
@@ -70,10 +94,13 @@ const int HOLD_DEG_CLOSE[2] = { 40, 150 };
 // hardware constant length (mm) / deg
 #define LEN_ARM_ROOT 185.000
 #define LEN_ARM_ELBOW 189.392
+#define LEN_ARM_ELBOW_CENTER 185.000
 #define ELBOW_FINGER_DEG 12.3632
 #define LEN_ROBOT_TO_BOARD_Y 144.424
 #define LEN_CENTER_TO_CELL_X 15.750
 #define LEN_CELL_SIZE 29.500
+#define LEN_ARM_RESTRICTED_RADIUS_RIGHT 140.000
+#define LEN_ARM_RESTRICTED_RADIUS_LEFT 70.000
 #define DISC_SUPPLY_X 157.719
 #define DISC_SUPPLY_Y 7.674
 #define DISC_SUPPLY_MODE 0
@@ -114,7 +141,7 @@ const int arm_mode[HW2] = {
 };
 
 // speed
-#define KRS_SERVO_SPEED 10
+#define KRS_SERVO_SPEED 7
 
 // clock
 #define TURN_INFO_NOT_PLAYING -1
@@ -287,11 +314,151 @@ int convert_to_krs_diff(double deg) {  // from neutral
   return round(deg * 8000.0 / 270.0);
 }
 
-double convert_from_krs_diff(double krs_deg) {  // from neutral
-  return (krs_deg - 7500) * 270.0 / 8000.0;
+double convert_from_krs_diff(double krs_deg, int neutral) {  // from neutral
+  return (krs_deg - neutral) * 270.0 / 8000.0;
+}
+
+void set_position_arm(double x_mm, double y_mm, int rl, int mode) {
+  double r2 = x_mm * x_mm + y_mm * y_mm;
+  double r = sqrt(r2);
+  const double L1 = LEN_ARM_ROOT;
+  const double L2 = LEN_ARM_ELBOW;
+  const double L12 = L1 * L1;
+  const double L22 = L2 * L2;
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;  // elbow
+  double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
+  int theta1_converted, theta2_converted;
+  if (mode == 0) {
+    double theta1 = acos(x_mm / r) * 180.0 / PI + theta3;  // shoulder
+    if (rl == RIGHT) {
+      theta2 -= ELBOW_FINGER_DEG;
+    } else {
+      theta2 += ELBOW_FINGER_DEG;
+    }
+    theta1_converted = -convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+    theta2_converted = convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
+  } else {
+    double theta1 = acos(-x_mm / r) * 180.0 / PI + theta3;  // shoulder
+    if (rl == RIGHT) {
+      theta2 += ELBOW_FINGER_DEG;
+    } else {
+      theta2 -= ELBOW_FINGER_DEG;
+    }
+    theta1_converted = convert_to_krs_diff(theta1 - 90.0) + KRS_NEUTRAL_ROOT;
+    theta2_converted = -convert_to_krs_diff(180.0 - theta2) + KRS_NEUTRAL_ELBOW;
+  }
+  krs.setPos(KRS_ID_ROOT, theta1_converted);
+  krs.setPos(KRS_ID_ELBOW, theta2_converted);
 }
 
 void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
+  double theta1_now = 90.0 - convert_from_krs_diff(krs.getPos(KRS_ID_ROOT), KRS_NEUTRAL_ROOT);
+  double theta2_now = 180.0 - convert_from_krs_diff(krs.getPos(KRS_ID_ELBOW), KRS_NEUTRAL_ELBOW);
+  double theta4_now = theta1_now + theta2_now - 180.0;
+  double x_mm_center_now = LEN_ARM_ROOT * cos(theta1_now * PI / 180.0) + LEN_ARM_ELBOW_CENTER * cos(theta4_now * PI / 180.0);
+  double y_mm_center_now = LEN_ARM_ROOT * sin(theta1_now * PI / 180.0) + LEN_ARM_ELBOW_CENTER * sin(theta4_now * PI / 180.0);
+  double theta4_rl_now = theta4_now;
+  if (rl == RIGHT) {
+    theta4_rl_now += ELBOW_FINGER_DEG;
+  } else {
+    theta4_rl_now -= ELBOW_FINGER_DEG;
+  }
+  double x_mm_rl_now = LEN_ARM_ROOT * cos(theta1_now * PI / 180.0) + LEN_ARM_ELBOW * cos(theta4_rl_now * PI / 180.0);
+  double y_mm_rl_now = LEN_ARM_ROOT * sin(theta1_now * PI / 180.0) + LEN_ARM_ELBOW * sin(theta4_rl_now * PI / 180.0);
+
+  // Serial2.print("deg ");
+  // Serial2.print(theta1_now);
+  // Serial2.print('\t');
+  // Serial2.print(theta2_now);
+  // Serial2.print('\t');
+  // Serial2.println(theta4_now);
+
+  // Serial2.print("now center ");
+  // Serial2.print(x_mm_center_now);
+  // Serial2.print('\t');
+  // Serial2.println(y_mm_center_now);
+
+  // Serial2.print("now rl ");
+  // Serial2.print(x_mm_rl_now);
+  // Serial2.print('\t');
+  // Serial2.println(y_mm_rl_now);
+  
+  double r2 = x_mm * x_mm + y_mm * y_mm;
+  double r = sqrt(r2);
+  const double L1 = LEN_ARM_ROOT;
+  const double L2 = LEN_ARM_ELBOW;
+  const double L12 = L1 * L1;
+  const double L22 = L2 * L2;
+  double theta2 = acos((L12 + L22 - r2) / (2.0 * L1 * L2)) * 180.0 / PI;  // elbow
+  double theta3 = acos((L12 - L22 + r2) / (2.0 * L1 * r)) * 180.0 / PI;
+  double theta1;
+  if (mode == 0) {
+    theta1 = acos(x_mm / r) * 180.0 / PI + theta3;  // shoulder
+  } else {
+    theta1 = acos(-x_mm / r) * 180.0 / PI + theta3;  // shoulder
+  }
+  double theta4 = theta1 + theta2 - 180.0;
+  double x_mm_center = LEN_ARM_ROOT * cos(theta1 * PI / 180.0) + LEN_ARM_ELBOW_CENTER * cos(theta4 * PI / 180.0);
+  double y_mm_center = LEN_ARM_ROOT * sin(theta1 * PI / 180.0) + LEN_ARM_ELBOW_CENTER * sin(theta4 * PI / 180.0);
+
+  // Serial2.print("to center ");
+  // Serial2.print(x_mm_center);
+  // Serial2.print('\t');
+  // Serial2.println(y_mm_center);
+
+  double distance_mm = sqrt((x_mm_center - x_mm_center_now) * (x_mm_center - x_mm_center_now) + (y_mm_center - y_mm_center_now) * (y_mm_center - y_mm_center_now));
+  int step = distance_mm / 2.0; // avg 2mm for 1 step
+  for (int i = 0; i < step; ++i) {
+    double a = (double)i / (double)step;
+    double b = (1.0 - cos(PI * (1.0 + a))) * 0.5;
+    double weight = 1.0 - pow(b, 2.0);
+    double x = x_mm_rl_now * (1.0 - weight) + x_mm * weight;
+    double y = y_mm_rl_now * (1.0 - weight) + y_mm * weight;
+    double r2 = x * x + y * y;
+    double deg = 90.0; 
+    if (abs(x) > 0.1) {
+      deg = atan(y / x) * 180.0 / PI;
+      if (deg < 0.0) {
+        deg += 180.0;
+      }
+    }
+    if (rl == RIGHT && r2 < LEN_ARM_RESTRICTED_RADIUS_RIGHT * LEN_ARM_RESTRICTED_RADIUS_RIGHT) {
+      // Serial2.print("fixed(r) deg ");
+      // Serial2.print(deg);
+      // Serial2.print("\tfrom ");
+      // Serial2.print(x);
+      // Serial2.print('\t');
+      // Serial2.print(y);
+      // Serial2.print("\tto ");
+      x = LEN_ARM_RESTRICTED_RADIUS_RIGHT * cos(deg * PI / 180.0);
+      y = LEN_ARM_RESTRICTED_RADIUS_RIGHT * sin(deg * PI / 180.0);
+      // Serial2.print(x);
+      // Serial2.print('\t');
+      // Serial2.println(y);
+    } else if (rl == LEFT && r2 < LEN_ARM_RESTRICTED_RADIUS_LEFT * LEN_ARM_RESTRICTED_RADIUS_LEFT) {
+      // Serial2.print("fixed(l) deg ");
+      // Serial2.print(deg);
+      // Serial2.print("\tfrom ");
+      // Serial2.print(x);
+      // Serial2.print('\t');
+      // Serial2.print(y);
+      // Serial2.print("\tto ");
+      x = LEN_ARM_RESTRICTED_RADIUS_LEFT * cos(deg * PI / 180.0);
+      y = LEN_ARM_RESTRICTED_RADIUS_LEFT * sin(deg * PI / 180.0);
+      // Serial2.print(x);
+      // Serial2.print('\t');
+      // Serial2.println(y);
+    }
+    // Serial2.print(x);
+    // Serial2.print('\t');
+    // Serial2.println(y);
+
+    set_position_arm(x, y, rl, mode);
+    delay(delay_msec);
+  }
+  set_position_arm(x_mm, y_mm, rl, mode);
+
+  /*
   double r2 = x_mm * x_mm + y_mm * y_mm;
   double r = sqrt(r2);
   const double L1 = LEN_ARM_ROOT;
@@ -372,6 +539,7 @@ void move_arm(double x_mm, double y_mm, int rl, int delay_msec, int mode) {
     int deg2 = round((double)theta2_start + diff_theta2);
     krs.setPos(KRS_ID_ELBOW, deg2);
   }
+  */
 }
 
 void get_disc(int rl, int bw) {
@@ -475,8 +643,7 @@ void set_camera() {
 
 bool wait_serial(int n) {
   unsigned long start = millis();
-  while (Serial2.available() < n && millis() - start <= SERIAL2_TIMEOUT)
-    ;
+  while (Serial2.available() < n && millis() - start <= SERIAL2_TIMEOUT);
   return Serial2.available() >= n;
 }
 
